@@ -1,0 +1,71 @@
+name: Fix gallery Cloudinary storage
+
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-gallery-storage.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Replace ImgBB/base64 fallback with Cloudinary upload
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+          old = '''            let finalUrl = uploadedDataUrl;
+            if (selectedFile) {
+                try {
+                    const fd = new FormData();
+                    fd.append('image', selectedFile);
+                    const res = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, { method: 'POST', body: fd });
+                    const data = await res.json();
+                    if (data.success && data.data.url) finalUrl = data.data.url;
+                } catch (e) { console.warn('ImgBB error, using base64'); }
+            }
+'''
+          new = '''            let finalUrl = '';
+            if (!selectedFile) {
+                alert('Сначала выберите фотографию.');
+                btn.disabled = false;
+                btn.textContent = '🏛️ Разместить в галерею';
+                return;
+            }
+            try {
+                btn.textContent = '☁️ Загружаю фото в хранилище...';
+                const fd = new FormData();
+                fd.append('file', selectedFile);
+                fd.append('upload_preset', 'kaktus');
+                const res = await fetch('https://api.cloudinary.com/v1_1/i1lysqxk/image/upload', { method: 'POST', body: fd });
+                const data = await res.json();
+                if (!res.ok || !data.secure_url) throw new Error(data?.error?.message || 'Cloudinary не вернул ссылку');
+                finalUrl = data.secure_url;
+                btn.textContent = '🔥 Сохраняю в галерее...';
+            } catch (e) {
+                console.error('Cloudinary upload error:', e);
+                alert('Фото не удалось загрузить в хранилище. В Firebase тяжёлый файл не отправляю. Попробуйте ещё раз.');
+                btn.disabled = false;
+                btn.textContent = '🏛️ Разместить в галерею';
+                return;
+            }
+'''
+          if old not in s:
+              raise SystemExit('Expected ImgBB upload block not found; index.html was not changed')
+          s = s.replace(old, new, 1)
+          p.write_text(s, encoding='utf-8')
+          print('index.html patched: Cloudinary storage enabled, base64 fallback removed')
+          PY
+      - name: Commit fix
+        run: |
+          git config user.name "derev-storage-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add index.html
+          git commit -m "Use Cloudinary for gallery image storage" || exit 0
+          git push
