@@ -1,0 +1,60 @@
+name: Fix per-site GA4 analytics
+
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-site-analytics-worker.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch worker and site analytics
+        shell: python
+        run: |
+          from pathlib import Path
+
+          p = Path('cloudflare-worker-qwen.js')
+          s = p.read_text()
+
+          old = "  const dateRange = { startDate, endDate: 'today' };\n"
+          new = "  const dateRange = { startDate, endDate: 'today' };\n  const site = String(body?.site || '').trim().replace(/[^a-zA-Z0-9_-]/g,'');\n  const siteFilter = site ? {filter:{fieldName:'pagePath',stringFilter:{matchType:'BEGINS_WITH',value:`/${site}/`,caseSensitive:false}}} : null;\n"
+          if 'const siteFilter = site ?' not in s:
+              s = s.replace(old, new, 1)
+
+          old = "  ];\n\n  const reports = await runInChunks(endpoint, accessToken, requests, 5);"
+          new = "  ];\n  if (siteFilter) requests.forEach(q => q.dimensionFilter = siteFilter);\n\n  const reports = await runInChunks(endpoint, accessToken, requests, 5);"
+          if 'requests.forEach(q => q.dimensionFilter = siteFilter)' not in s:
+              s = s.replace(old, new, 1)
+
+          old = "    ];\n    const vr = await runInChunks(endpoint, accessToken, visitorReqs, 5);"
+          new = "    ];\n    if (siteFilter) visitorReqs.forEach(q => q.dimensionFilter = siteFilter);\n    const vr = await runInChunks(endpoint, accessToken, visitorReqs, 5);"
+          if 'visitorReqs.forEach(q => q.dimensionFilter = siteFilter)' not in s:
+              s = s.replace(old, new, 1)
+
+          old = "    ok:true, propertyId:GA4_PROPERTY_ID, days, summary,"
+          new = "    ok:true, propertyId:GA4_PROPERTY_ID, days, site, summary,"
+          s = s.replace(old, new, 1)
+
+          old = "function aggregateSites(pageRows){\n  const map=new Map();\n  for(const r of pageRows){const name=r.host||'Не определено';const cur=map.get(name)||{name,users:0,views:0};cur.users+=r.users;cur.views+=r.views;map.set(name,cur);}\n  return [...map.values()].sort((a,b)=>b.views-a.views).slice(0,60);\n}"
+          new = "function aggregateSites(pageRows){\n  const map=new Map();\n  for(const r of pageRows){\n    const seg=String(r.path||'/').split('?')[0].split('/').filter(Boolean)[0]||'root';\n    const cur=map.get(seg)||{name:seg,users:0,views:0};\n    cur.users+=r.users;cur.views+=r.views;map.set(seg,cur);\n  }\n  return [...map.values()].sort((a,b)=>b.views-a.views).slice(0,60);\n}"
+          s = s.replace(old, new, 1)
+          p.write_text(s)
+
+          p = Path('site-analytics.html')
+          s = p.read_text()
+          s = s.replace("body:JSON.stringify({action:'analytics',days})", "body:JSON.stringify({action:'analytics',days,site})")
+          p.write_text(s)
+      - name: Commit fix
+        run: |
+          git config user.name "derev-analytics-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add cloudflare-worker-qwen.js site-analytics.html
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "Fix per-site GA4 filtering"
+          git push
