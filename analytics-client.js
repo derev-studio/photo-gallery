@@ -85,6 +85,10 @@
     });
   }
 
+  // Standard page_view for GA4 reports and Realtime.
+  const analyticsPageTitle = `${site} | ${document.title}`;
+  gtag('event', 'page_view', { page_location: location.href, page_title: analyticsPageTitle });
+
   sendVisit();
 
   window.DerevVisitor = {

@@ -37,6 +37,11 @@ export default {
         return handleAnalytics(body, env, cors);
       }
 
+      if (body.action === 'realtime') {
+        if (!isOwner) return json({ error: 'Realtime доступен только владельцу' }, 403, cors);
+        return handleRealtime(body, env, cors);
+      }
+
       if (!env.QWEN_API_KEY) return json({ error: 'QWEN_API_KEY is not configured' }, 500, cors);
 
       const model = String(body.model || '');
@@ -105,6 +110,22 @@ export default {
     }
   }
 };
+
+async function handleRealtime(body, env, cors) {
+  const site = String(body?.site || '').trim().replace(/[^a-zA-Z0-9_-]/g,'');
+  if (!site) return json({ error: 'site is required' }, 400, cors);
+  const sa = JSON.parse(env.GOOGLE_ANALYTICS_SERVICE_ACCOUNT || '{}');
+  if (!sa.client_email || !sa.private_key) return json({ error: 'Google Analytics service account secret is missing' }, 500, cors);
+  const accessToken = await getGoogleAccessToken(sa);
+  const endpoint = `https://analyticsdata.googleapis.com/v1beta/properties/${GA4_PROPERTY_ID}:runRealtimeReport`;
+  const requestBody = {metrics:[{name:'activeUsers'}],minuteRanges:[{name:'now',startMinutesAgo:0,endMinutesAgo:0},{name:'last10',startMinutesAgo:9,endMinutesAgo:0}],dimensionFilter:{filter:{fieldName:'unifiedScreenName',stringFilter:{matchType:'BEGINS_WITH',value:`${site} |`,caseSensitive:false}}}};
+  const r = await fetch(endpoint,{method:'POST',headers:{'Authorization':`Bearer ${accessToken}`,'Content-Type':'application/json'},body:JSON.stringify(requestBody)});
+  const data = await r.json();
+  if (!r.ok) return json({ error:data?.error?.message || 'GA4 Realtime API error' }, r.status, cors);
+  let now=0,last10=0;
+  for (const row of data.rows || []) { const range=row.dimensionValues?.[0]?.value||''; const users=n(row.metricValues?.[0]?.value); if(range==='now')now=users; if(range==='last10')last10=users; }
+  return json({ok:true,site,now,last10,updatedAt:new Date().toISOString()},200,cors);
+}
 
 async function handleAnalytics(body, env, cors) {
   const rawDays = Number(body?.days ?? 7);
