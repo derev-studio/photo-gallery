@@ -85,30 +85,17 @@
   };
 
   document.addEventListener('DOMContentLoaded', () => {
-    const oldAdminLink = document.querySelector('.top a[href="admin.html"]');
-    if (oldAdminLink) {
-      oldAdminLink.href = 'index.html';
-      oldAdminLink.textContent = '← Фотогалерея';
-    }
+    // Analytics must never be advertised on public pages.
+    document.querySelectorAll('a[href="analytics.html"], a[href$="/analytics.html"]').forEach(a => a.remove());
 
+    // Keep only Google sign-in on the main photo gallery.
     const status = document.getElementById('userStatus');
     if (!status || !window.firebase) return;
 
     status.style.cursor = 'pointer';
     status.title = 'Нажмите, чтобы войти через Google';
 
-    const analyticsLink = document.createElement('a');
-    analyticsLink.href = 'analytics.html';
-    analyticsLink.textContent = '📊 Аналитика';
-    analyticsLink.className = 'lang-btn';
-    analyticsLink.style.textDecoration = 'none';
-    analyticsLink.style.display = 'none';
-    analyticsLink.style.alignItems = 'center';
-    const controls = status.parentElement;
-    if (controls && !controls.querySelector('a[href="analytics.html"]')) controls.appendChild(analyticsLink);
-
     async function verifyOwner(user) {
-      analyticsLink.style.display = 'none';
       if (!user) {
         window.DerevVisitor.unmarkOwner();
         return false;
@@ -123,7 +110,6 @@
         const data = await r.json();
         if (r.ok && data.isOwner === true) {
           window.DerevVisitor.markOwner();
-          analyticsLink.style.display = 'inline-flex';
           return true;
         }
       } catch (e) {
@@ -145,7 +131,6 @@
               status.textContent = (isOwner ? '👑 ' : '✅ ') + shortName;
               status.title = 'Нажмите, чтобы выйти';
             } else {
-              analyticsLink.style.display = 'none';
               window.DerevVisitor.unmarkOwner();
               status.textContent = '👤 Войти через Google';
               status.title = 'Нажмите, чтобы войти через Google';
