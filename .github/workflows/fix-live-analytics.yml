@@ -1,0 +1,72 @@
+name: Fix live analytics
+on:
+  push:
+    paths: ['.github/workflows/fix-live-analytics.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fix shared analytics and photo gallery
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          # 1) The central photo-gallery page was missing the shared GA4 client.
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+          tracker = '<script defer src="https://derev-studio.github.io/photo-gallery/analytics-client.js"></script>\n'
+          counter = '<script defer src="https://derev-studio.github.io/photo-gallery/counter.js" data-site="photo-gallery"></script>'
+          if 'analytics-client.js' not in s:
+              if counter in s:
+                  s = s.replace(counter, tracker + counter, 1)
+              else:
+                  s = s.replace('</body>', tracker + '</body>', 1)
+              p.write_text(s, encoding='utf-8')
+
+          # 2) Keep GA4 Realtime alive while a visitor actually has the tab open.
+          p = Path('analytics-client.js')
+          s = p.read_text(encoding='utf-8')
+          marker = "  sendVisit();\n\n  window.DerevVisitor = {"
+          if "gtag('event', 'derev_presence'" not in s and marker in s:
+              heartbeat = """  sendVisit();
+
+  // Realtime presence: a silent signal while the tab is actually visible.
+  function sendPresence() {
+    if (document.visibilityState !== 'visible') return;
+    setUserProperties();
+    gtag('event', 'derev_presence', {
+      visitor_id: visitorId,
+      visitor_owner: ownerMark,
+      site_id: site,
+      page_location: location.href,
+      page_title: analyticsPageTitle
+    });
+  }
+  setTimeout(sendPresence, 15000);
+  setInterval(sendPresence, 45000);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') sendPresence();
+  });
+
+  window.DerevVisitor = {"""
+              s = s.replace(marker, heartbeat, 1)
+              p.write_text(s, encoding='utf-8')
+
+          # 3) Make the dashboard label unambiguous.
+          p = Path('site-analytics.html')
+          if p.exists():
+              s = p.read_text(encoding='utf-8')
+              s2 = s.replace('<div class="label">Среднее время</div>', '<div class="label">Среднее время на сайте</div>')
+              if s2 != s:
+                  p.write_text(s2, encoding='utf-8')
+          PY
+      - name: Commit fixes
+        run: |
+          git config user.name "derev-analytics-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add index.html analytics-client.js site-analytics.html
+          git diff --cached --quiet || (git commit -m "Fix live analytics across sites" && git push)
