@@ -1,5 +1,6 @@
 const FIREBASE_API_KEY = 'AIzaSyB2X3o7KwYFkMfsskKoWpQYBrws8L-Mn9w';
 const OWNER_EMAIL_SHA256 = '9dc9231a1eb41216aa77db40cfec6336ccbbec33c24198693f2220aa10d5dcdf';
+const GA4_PROPERTY_ID = '556452970';
 
 export default {
   async fetch(request, env) {
@@ -14,7 +15,6 @@ export default {
 
     if (request.method === 'OPTIONS') return new Response(null, { headers: cors });
     if (request.method !== 'POST') return json({ error: 'POST only' }, 405, cors);
-    if (!env.QWEN_API_KEY) return json({ error: 'QWEN_API_KEY is not configured' }, 500, cors);
 
     try {
       const auth = request.headers.get('Authorization') || '';
@@ -31,6 +31,13 @@ export default {
       if (body.action === 'whoami') {
         return json({ ok: true, isOwner, name: user.displayName || '', email: user.email || '' }, 200, cors);
       }
+
+      if (body.action === 'analytics') {
+        if (!isOwner) return json({ error: 'Analytics доступна только владельцу' }, 403, cors);
+        return handleAnalytics(body, env, cors);
+      }
+
+      if (!env.QWEN_API_KEY) return json({ error: 'QWEN_API_KEY is not configured' }, 500, cors);
 
       const model = String(body.model || '');
       const prompt = String(body.prompt || '').trim();
@@ -98,6 +105,120 @@ export default {
     }
   }
 };
+
+async function handleAnalytics(body, env, cors) {
+  const rawDays = Number(body?.days ?? 7);
+  const days = [0, 7, 30].includes(rawDays) ? rawDays : 7;
+  const startDate = days === 0 ? 'today' : `${days - 1}daysAgo`;
+  const dateRange = { startDate, endDate: 'today' };
+
+  const sa = JSON.parse(env.GOOGLE_ANALYTICS_SERVICE_ACCOUNT || '{}');
+  if (!sa.client_email || !sa.private_key) {
+    return json({ error: 'Google Analytics service account secret is missing' }, 500, cors);
+  }
+
+  const accessToken = await getGoogleAccessToken(sa);
+  const endpoint = `https://analyticsdata.googleapis.com/v1beta/properties/${GA4_PROPERTY_ID}:batchRunReports`;
+  const requests = [
+    report(dateRange, [], ['activeUsers','sessions','screenPageViews','newUsers']),
+    report(dateRange, ['country','region','city'], ['activeUsers','sessions'], 250),
+    report(dateRange, ['deviceCategory'], ['activeUsers'], 20),
+    report(dateRange, ['browser'], ['activeUsers'], 30),
+    report(dateRange, ['operatingSystem'], ['activeUsers'], 30),
+    report(dateRange, ['language'], ['activeUsers'], 50),
+    report(dateRange, ['newVsReturning'], ['activeUsers'], 10),
+    report(dateRange, ['sessionSourceMedium'], ['activeUsers','sessions'], 100),
+    report(dateRange, ['pagePath'], ['screenPageViews','activeUsers'], 300),
+    report(dateRange, ['userAgeBracket'], ['activeUsers'], 20),
+    report(dateRange, ['userGender'], ['activeUsers'], 10)
+  ];
+
+  const r = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ requests })
+  });
+  const data = await r.json();
+  if (!r.ok) return json({ error: data?.error?.message || 'GA4 Data API error' }, r.status, cors);
+
+  const reports = data.reports || [];
+  const s = reports[0]?.rows?.[0]?.metricValues || [];
+  const summary = { users:n(s[0]?.value), sessions:n(s[1]?.value), views:n(s[2]?.value), newUsers:n(s[3]?.value) };
+
+  const locations = rows(reports[1]).map(x => ({country:x.d[0]||'Не определено',region:x.d[1]||'',city:x.d[2]||'Не определено',users:n(x.m[0]),sessions:n(x.m[1])}));
+  const devices = simpleRows(reports[2], deviceName);
+  const browsers = simpleRows(reports[3]);
+  const operatingSystems = simpleRows(reports[4]);
+  const languages = simpleRows(reports[5]);
+  const visitorTypes = simpleRows(reports[6], visitorTypeName);
+  const sources = rows(reports[7]).map(x=>({name:x.d[0]||'Не определено',users:n(x.m[0]),sessions:n(x.m[1])}));
+  const pageRows = rows(reports[8]).map(x=>({path:x.d[0]||'/',views:n(x.m[0]),users:n(x.m[1])}));
+  const ages = simpleRows(reports[9], ageName);
+  const genders = simpleRows(reports[10], genderName);
+
+  return json({
+    ok:true, propertyId:GA4_PROPERTY_ID, days, summary,
+    locations, devices, browsers, operatingSystems, languages, visitorTypes, sources,
+    pages:pageRows.slice(0,80), sites:aggregateSites(pageRows), ages, genders,
+    privacyNote:'География и демография агрегированы Google Analytics и могут быть скрыты порогами конфиденциальности.'
+  }, 200, cors);
+}
+
+function report(dateRange, dimensions, metrics, limit) {
+  const q = {
+    dateRanges:[dateRange],
+    dimensions:dimensions.map(name=>({name})),
+    metrics:metrics.map(name=>({name}))
+  };
+  if (limit) {
+    q.limit=String(limit);
+    q.orderBys=[{metric:{metricName:metrics[0]},desc:true}];
+  }
+  return q;
+}
+function rows(reportObj){
+  return (reportObj?.rows||[]).map(r=>({d:(r.dimensionValues||[]).map(v=>v.value),m:(r.metricValues||[]).map(v=>v.value)}));
+}
+function simpleRows(reportObj, mapper=(v=>v||'Не определено')){
+  return rows(reportObj).map(x=>({name:mapper(x.d[0]),users:n(x.m[0])}));
+}
+function n(v){const x=Number(v||0);return Number.isFinite(x)?x:0;}
+function deviceName(v){return ({desktop:'Компьютер',mobile:'Телефон',tablet:'Планшет',smartTv:'Телевизор'})[v]||v||'Не определено';}
+function visitorTypeName(v){return ({new:'Новый',returning:'Вернувшийся'})[v]||v||'Не определено';}
+function ageName(v){return ({'18-24':'18–24','25-34':'25–34','35-44':'35–44','45-54':'45–54','55-64':'55–64','65+':'65+'})[v]||v||'Не определено';}
+function genderName(v){return ({male:'Мужчины',female:'Женщины'})[v]||v||'Не определено';}
+function aggregateSites(pageRows){
+  const map=new Map();
+  for(const r of pageRows){
+    const seg=String(r.path||'/').split('?')[0].split('/').filter(Boolean)[0]||'root';
+    const name=siteName(seg);const cur=map.get(name)||{name,users:0,views:0};cur.users+=r.users;cur.views+=r.views;map.set(name,cur);
+  }
+  return [...map.values()].sort((a,b)=>b.views-a.views).slice(0,40);
+}
+function siteName(seg){
+  const names={'photo-gallery':'Фотогалерея + AI','elki-palki':'Ёлки-палки','dasha-risunki':'Даша — рисунки','roni':'Рони','toda-poriya':'Toda Poriya','cow-site':'Cow site','derevyashkin-writer':'Сайт писателя','cactus-books':'Книги / кактусы','photo-preview':'Photo Preview','root':'Главная derev-studio.github.io'};
+  return names[seg]||seg;
+}
+
+async function getGoogleAccessToken(sa) {
+  const now=Math.floor(Date.now()/1000);
+  const header=b64url(JSON.stringify({alg:'RS256',typ:'JWT'}));
+  const claim=b64url(JSON.stringify({iss:sa.client_email,scope:'https://www.googleapis.com/auth/analytics.readonly',aud:'https://oauth2.googleapis.com/token',iat:now,exp:now+3600}));
+  const unsigned=`${header}.${claim}`;
+  const key=await crypto.subtle.importKey('pkcs8',pemToArrayBuffer(sa.private_key),{name:'RSASSA-PKCS1-v1_5',hash:'SHA-256'},false,['sign']);
+  const sig=await crypto.subtle.sign('RSASSA-PKCS1-v1_5',key,new TextEncoder().encode(unsigned));
+  const jwt=`${unsigned}.${b64urlBytes(new Uint8Array(sig))}`;
+  const r=await fetch('https://oauth2.googleapis.com/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({grant_type:'urn:ietf:params:oauth:grant-type:jwt-bearer',assertion:jwt})});
+  const j=await r.json();
+  if(!r.ok||!j.access_token)throw new Error(j.error_description||j.error||'Google OAuth failed');
+  return j.access_token;
+}
+function pemToArrayBuffer(pem){
+  const b64=String(pem).replace(/-----BEGIN PRIVATE KEY-----/g,'').replace(/-----END PRIVATE KEY-----/g,'').replace(/\s+/g,'');
+  const bin=atob(b64);const out=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)out[i]=bin.charCodeAt(i);return out.buffer;
+}
+function b64url(s){return b64urlBytes(new TextEncoder().encode(s));}
+function b64urlBytes(bytes){let b='';bytes.forEach(x=>b+=String.fromCharCode(x));return btoa(b).replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_');}
 
 async function verifyFirebaseUser(idToken) {
   const r = await fetch('https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=' + FIREBASE_API_KEY, {
