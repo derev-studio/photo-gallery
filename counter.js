@@ -1,0 +1,1 @@
+(()=>{const site=(document.currentScript&&document.currentScript.dataset.site)||'site';const once='ds-counted-'+site;if(sessionStorage.getItem(once))return;sessionStorage.setItem(once,'1');fetch('https://countapi.mileshilliard.com/api/v1/hit/derev-studio-'+encodeURIComponent(site)).catch(()=>{});})();
