@@ -118,8 +118,7 @@ async function handleAnalytics(body, env, cors) {
   }
 
   const accessToken = await getGoogleAccessToken(sa);
-  const endpoint = `https://analyticsdata.googleapis.com/v1beta/properties/${GA4_PROPERTY_ID}:batchRunReports`;
-  const requests = [
+  const allRequests = [
     report(dateRange, [], ['activeUsers','sessions','screenPageViews','newUsers']),
     report(dateRange, ['country','region','city'], ['activeUsers','sessions'], 250),
     report(dateRange, ['deviceCategory'], ['activeUsers'], 20),
@@ -130,18 +129,26 @@ async function handleAnalytics(body, env, cors) {
     report(dateRange, ['sessionSourceMedium'], ['activeUsers','sessions'], 100),
     report(dateRange, ['pagePath'], ['screenPageViews','activeUsers'], 300),
     report(dateRange, ['userAgeBracket'], ['activeUsers'], 20),
-    report(dateRange, ['userGender'], ['activeUsers'], 10)
+    report(dateRange, ['userGender'], ['activeUsers'], 10),
+    report(dateRange, ['hostName'], ['activeUsers','screenPageViews'], 100),
+    report(dateRange, ['dateHour'], ['activeUsers','sessions'], 300),
+    report(dateRange, ['sessionSource','sessionMedium','sessionCampaignName'], ['activeUsers','sessions'], 120)
   ];
 
-  const r = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ requests })
-  });
-  const data = await r.json();
-  if (!r.ok) return json({ error: data?.error?.message || 'GA4 Data API error' }, r.status, cors);
+  const reports = [];
+  for (let i = 0; i < allRequests.length; i += 5) {
+    const batch = allRequests.slice(i, i + 5);
+    const endpoint = `https://analyticsdata.googleapis.com/v1beta/properties/${GA4_PROPERTY_ID}:batchRunReports`;
+    const r = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requests: batch })
+    });
+    const data = await r.json();
+    if (!r.ok) return json({ error: data?.error?.message || 'GA4 Data API error' }, r.status, cors);
+    reports.push(...(data.reports || []));
+  }
 
-  const reports = data.reports || [];
   const s = reports[0]?.rows?.[0]?.metricValues || [];
   const summary = { users:n(s[0]?.value), sessions:n(s[1]?.value), views:n(s[2]?.value), newUsers:n(s[3]?.value) };
 
@@ -155,11 +162,14 @@ async function handleAnalytics(body, env, cors) {
   const pageRows = rows(reports[8]).map(x=>({path:x.d[0]||'/',views:n(x.m[0]),users:n(x.m[1])}));
   const ages = simpleRows(reports[9], ageName);
   const genders = simpleRows(reports[10], genderName);
+  const sites = rows(reports[11]).map(x=>({name:x.d[0]||'Не определено',users:n(x.m[0]),views:n(x.m[1])}));
+  const hours = rows(reports[12]).map(x=>({stamp:x.d[0]||'',users:n(x.m[0]),sessions:n(x.m[1])})).sort((a,b)=>a.stamp.localeCompare(b.stamp));
+  const campaigns = rows(reports[13]).map(x=>({source:x.d[0]||'(direct)',medium:x.d[1]||'',campaign:x.d[2]||'',users:n(x.m[0]),sessions:n(x.m[1])}));
 
   return json({
     ok:true, propertyId:GA4_PROPERTY_ID, days, summary,
     locations, devices, browsers, operatingSystems, languages, visitorTypes, sources,
-    pages:pageRows.slice(0,80), sites:aggregateSites(pageRows), ages, genders,
+    pages:pageRows.slice(0,80), sites, ages, genders, hours, campaigns,
     privacyNote:'География и демография агрегированы Google Analytics и могут быть скрыты порогами конфиденциальности.'
   }, 200, cors);
 }
@@ -187,18 +197,6 @@ function deviceName(v){return ({desktop:'Компьютер',mobile:'Телеф�
 function visitorTypeName(v){return ({new:'Новый',returning:'Вернувшийся'})[v]||v||'Не определено';}
 function ageName(v){return ({'18-24':'18–24','25-34':'25–34','35-44':'35–44','45-54':'45–54','55-64':'55–64','65+':'65+'})[v]||v||'Не определено';}
 function genderName(v){return ({male:'Мужчины',female:'Женщины'})[v]||v||'Не определено';}
-function aggregateSites(pageRows){
-  const map=new Map();
-  for(const r of pageRows){
-    const seg=String(r.path||'/').split('?')[0].split('/').filter(Boolean)[0]||'root';
-    const name=siteName(seg);const cur=map.get(name)||{name,users:0,views:0};cur.users+=r.users;cur.views+=r.views;map.set(name,cur);
-  }
-  return [...map.values()].sort((a,b)=>b.views-a.views).slice(0,40);
-}
-function siteName(seg){
-  const names={'photo-gallery':'Фотогалерея + AI','elki-palki':'Ёлки-палки','dasha-risunki':'Даша — рисунки','roni':'Рони','toda-poriya':'Toda Poriya','cow-site':'Cow site','derevyashkin-writer':'Сайт писателя','cactus-books':'Книги / кактусы','photo-preview':'Photo Preview','root':'Главная derev-studio.github.io'};
-  return names[seg]||seg;
-}
 
 async function getGoogleAccessToken(sa) {
   const now=Math.floor(Date.now()/1000);
