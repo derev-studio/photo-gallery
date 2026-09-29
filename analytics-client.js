@@ -3,6 +3,7 @@
   const VISITOR_KEY = 'derev_visitor_id_v1';
   const FIRST_SEEN_KEY = 'derev_visitor_first_seen_v1';
   const OWNER_KEY = 'derev_owner_browser_v1';
+  const VISIT_PREFIX = 'derev_site_visits_v1:';
   const WORKER_URL = 'https://photo-ai-qwen.qerevv.workers.dev/';
   const FIREBASE_CONFIG = {
     apiKey: 'AIzaSyB2X3o7KwYFkMfsskKoWpQYBrws8L-Mn9w',
@@ -20,6 +21,12 @@
     return 'V-' + [...bytes].map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
   }
 
+  function siteId() {
+    const first = location.pathname.split('/').filter(Boolean)[0];
+    return first || 'root';
+  }
+
+  const site = siteId();
   let visitorId = localStorage.getItem(VISITOR_KEY);
   if (!visitorId) {
     visitorId = makeId();
@@ -32,7 +39,11 @@
     localStorage.setItem(FIRST_SEEN_KEY, firstSeen);
   }
 
-  const ownerMark = localStorage.getItem(OWNER_KEY) === '1' ? 'owner' : 'visitor';
+  const visitKey = VISIT_PREFIX + site;
+  const visitNumber = (Number(localStorage.getItem(visitKey)) || 0) + 1;
+  localStorage.setItem(visitKey, String(visitNumber));
+
+  let ownerMark = localStorage.getItem(OWNER_KEY) === '1' ? 'owner' : 'visitor';
 
   window.dataLayer = window.dataLayer || [];
   window.gtag = window.gtag || function(){ dataLayer.push(arguments); };
@@ -46,40 +57,56 @@
 
   gtag('js', new Date());
   gtag('config', MEASUREMENT_ID, { send_page_view: false });
-  gtag('set', 'user_properties', {
-    visitor_id: visitorId,
-    visitor_owner: ownerMark,
-    visitor_first_seen: firstSeen.slice(0, 10)
-  });
 
-  gtag('event', 'visitor_profile', {
-    visitor_id: visitorId,
-    visitor_owner: ownerMark,
-    visitor_first_seen: firstSeen.slice(0, 10),
-    page_location: location.href,
-    page_title: document.title,
-    screen_size: `${screen.width}x${screen.height}`,
-    viewport_size: `${innerWidth}x${innerHeight}`,
-    timezone_name: Intl.DateTimeFormat().resolvedOptions().timeZone || '',
-    browser_language: navigator.language || '',
-    touch_points: Number(navigator.maxTouchPoints || 0),
-    referrer_host: (() => { try { return document.referrer ? new URL(document.referrer).hostname : 'direct'; } catch { return 'direct'; } })()
-  });
+  function setUserProperties() {
+    gtag('set', 'user_properties', {
+      visitor_id: visitorId,
+      visitor_owner: ownerMark,
+      visitor_first_seen: firstSeen.slice(0, 10)
+    });
+  }
+
+  function sendVisit(eventName='visitor_profile') {
+    setUserProperties();
+    gtag('event', eventName, {
+      visitor_id: visitorId,
+      visitor_owner: ownerMark,
+      visitor_first_seen: firstSeen.slice(0, 10),
+      site_id: site,
+      visit_number: visitNumber,
+      page_location: location.href,
+      page_title: document.title,
+      screen_size: `${screen.width}x${screen.height}`,
+      viewport_size: `${innerWidth}x${innerHeight}`,
+      timezone_name: Intl.DateTimeFormat().resolvedOptions().timeZone || '',
+      browser_language: navigator.language || '',
+      touch_points: Number(navigator.maxTouchPoints || 0),
+      referrer_host: (() => { try { return document.referrer ? new URL(document.referrer).hostname : 'direct'; } catch { return 'direct'; } })()
+    });
+  }
+
+  sendVisit();
 
   window.DerevVisitor = {
     id: visitorId,
     firstSeen,
+    site,
+    visitNumber,
     isOwner: ownerMark === 'owner',
     markOwner() {
       localStorage.setItem(OWNER_KEY, '1');
+      ownerMark = 'owner';
       this.isOwner = true;
-      gtag('set', 'user_properties', { visitor_owner: 'owner' });
+      setUserProperties();
+      // Не исключаем владельца. Помечаем его и сохраняем текущий визит как визит владельца.
+      sendVisit('owner_visit_identified');
       return true;
     },
     unmarkOwner() {
       localStorage.removeItem(OWNER_KEY);
+      ownerMark = 'visitor';
       this.isOwner = false;
-      gtag('set', 'user_properties', { visitor_owner: 'visitor' });
+      setUserProperties();
       return true;
     }
   };
