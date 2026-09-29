@@ -14,29 +14,57 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Fix realtime analytics startup
+      - name: Fix realtime GA4 matching
         run: |
           python - <<'PY'
           from pathlib import Path
-          p = Path('site-analytics.html')
-          s = p.read_text(encoding='utf-8')
-          old = "localStorage.setItem('derev_owner_browser_v1','1');await loadAnalytics()}catch(e){loginMsg.textContent=e.message}});"
-          new = "localStorage.setItem('derev_owner_browser_v1','1');await loadAnalytics();await loadRealtime();setInterval(loadRealtime,15000)}catch(e){loginMsg.textContent=e.message}});"
-          if old in s:
-              s = s.replace(old, new, 1)
-              p.write_text(s, encoding='utf-8')
-              print('Realtime startup fixed')
-          else:
-              print('Realtime startup already fixed or marker changed')
+          p=Path('cloudflare-worker-qwen.js')
+          s=p.read_text(encoding='utf-8')
+          start=s.index('async function handleRealtime(body, env, cors) {')
+          end=s.index('\nasync function handleAnalytics(body, env, cors) {', start)
+          fn=r'''async function handleRealtime(body, env, cors) {
+  const site = String(body?.site || '').trim().replace(/[^a-zA-Z0-9_-]/g,'');
+  if (!site) return json({ error: 'site is required' }, 400, cors);
+  const sa = JSON.parse(env.GOOGLE_ANALYTICS_SERVICE_ACCOUNT || '{}');
+  if (!sa.client_email || !sa.private_key) return json({ error: 'Google Analytics service account secret is missing' }, 500, cors);
+  const accessToken = await getGoogleAccessToken(sa);
+  const endpoint = `https://analyticsdata.googleapis.com/v1beta/properties/${GA4_PROPERTY_ID}:runRealtimeReport`;
+  const requestBody = {
+    dimensions:[{name:'unifiedScreenName'}],
+    metrics:[{name:'activeUsers'}],
+    minuteRanges:[
+      {name:'now',startMinutesAgo:1,endMinutesAgo:0},
+      {name:'last10',startMinutesAgo:9,endMinutesAgo:0}
+    ]
+  };
+  const r = await fetch(endpoint,{method:'POST',headers:{'Authorization':`Bearer ${accessToken}`,'Content-Type':'application/json'},body:JSON.stringify(requestBody)});
+  const data = await r.json();
+  if (!r.ok) return json({ error:data?.error?.message || 'GA4 Realtime API error' }, r.status, cors);
+  let now=0,last10=0;
+  const prefix = `${site} |`;
+  for (const row of data.rows || []) {
+    const range = row.dimensionValues?.[0]?.value || '';
+    const title = row.dimensionValues?.[1]?.value || '';
+    if (!title.toLowerCase().startsWith(prefix.toLowerCase())) continue;
+    const users = n(row.metricValues?.[0]?.value);
+    if (range === 'now') now += users;
+    if (range === 'last10') last10 += users;
+  }
+  return json({ok:true,site,now,last10,updatedAt:new Date().toISOString()},200,cors);
+}
+'''
+          s=s[:start]+fn+s[end:]
+          p.write_text(s,encoding='utf-8')
+          print('Realtime worker fixed')
           PY
       - name: Commit changes
         run: |
           git config user.name "derev-analytics-bot"
           git config user.email "actions@users.noreply.github.com"
-          git add site-analytics.html
+          git add cloudflare-worker-qwen.js
           if git diff --cached --quiet; then
             echo "No changes"
           else
-            git commit -m "Start realtime analytics automatically"
+            git commit -m "Fix realtime GA4 site matching"
             git push
           fi
