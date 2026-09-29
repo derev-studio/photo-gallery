@@ -14,64 +14,29 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Patch realtime analytics
+      - name: Fix realtime analytics startup
         run: |
           python - <<'PY'
           from pathlib import Path
-
-          p = Path('analytics-client.js')
-          s = p.read_text(encoding='utf-8')
-          old = "  sendVisit();\n\n  window.DerevVisitor = {"
-          new = "  // Standard page_view for GA4 reports and Realtime.\n  const analyticsPageTitle = `${site} | ${document.title}`;\n  gtag('event', 'page_view', { page_location: location.href, page_title: analyticsPageTitle });\n\n  sendVisit();\n\n  window.DerevVisitor = {"
-          if old in s and 'analyticsPageTitle' not in s:
-              s = s.replace(old, new, 1)
-              p.write_text(s, encoding='utf-8')
-              print('analytics-client.js patched')
-
-          p = Path('cloudflare-worker-qwen.js')
-          s = p.read_text(encoding='utf-8')
-          marker = "      if (body.action === 'analytics') {\n        if (!isOwner) return json({ error: 'Analytics доступна только владельцу' }, 403, cors);\n        return handleAnalytics(body, env, cors);\n      }\n"
-          if "body.action === 'realtime'" not in s:
-              repl = marker + "\n      if (body.action === 'realtime') {\n        if (!isOwner) return json({ error: 'Realtime доступен только владельцу' }, 403, cors);\n        return handleRealtime(body, env, cors);\n      }\n"
-              if marker not in s:
-                  raise SystemExit('worker route marker not found')
-              s = s.replace(marker, repl, 1)
-          if 'async function handleRealtime' not in s:
-              before = 'async function handleAnalytics(body, env, cors) {'
-              fn = "async function handleRealtime(body, env, cors) {\n  const site = String(body?.site || '').trim().replace(/[^a-zA-Z0-9_-]/g,'');\n  if (!site) return json({ error: 'site is required' }, 400, cors);\n  const sa = JSON.parse(env.GOOGLE_ANALYTICS_SERVICE_ACCOUNT || '{}');\n  if (!sa.client_email || !sa.private_key) return json({ error: 'Google Analytics service account secret is missing' }, 500, cors);\n  const accessToken = await getGoogleAccessToken(sa);\n  const endpoint = `https://analyticsdata.googleapis.com/v1beta/properties/${GA4_PROPERTY_ID}:runRealtimeReport`;\n  const requestBody = {metrics:[{name:'activeUsers'}],minuteRanges:[{name:'now',startMinutesAgo:0,endMinutesAgo:0},{name:'last10',startMinutesAgo:9,endMinutesAgo:0}],dimensionFilter:{filter:{fieldName:'unifiedScreenName',stringFilter:{matchType:'BEGINS_WITH',value:`${site} |`,caseSensitive:false}}}};\n  const r = await fetch(endpoint,{method:'POST',headers:{'Authorization':`Bearer ${accessToken}`,'Content-Type':'application/json'},body:JSON.stringify(requestBody)});\n  const data = await r.json();\n  if (!r.ok) return json({ error:data?.error?.message || 'GA4 Realtime API error' }, r.status, cors);\n  let now=0,last10=0;\n  for (const row of data.rows || []) { const range=row.dimensionValues?.[0]?.value||''; const users=n(row.metricValues?.[0]?.value); if(range==='now')now=users; if(range==='last10')last10=users; }\n  return json({ok:true,site,now,last10,updatedAt:new Date().toISOString()},200,cors);\n}\n\n"
-              if before not in s:
-                  raise SystemExit('handleAnalytics marker not found')
-              s = s.replace(before, fn + before, 1)
-          p.write_text(s, encoding='utf-8')
-          print('worker patched')
-
           p = Path('site-analytics.html')
           s = p.read_text(encoding='utf-8')
-          if 'id="rtNow"' not in s:
-              needle = '<div class="cards">'
-              replacement = '<div class="cards"><div class="card c2"><div class="label">🟢 Сейчас на сайте</div><div class="metric" id="rtNow">0</div></div><div class="card c1"><div class="label">⚡ За последние 10 минут</div><div class="metric" id="rt10">0</div></div>'
-              if needle not in s:
-                  raise SystemExit('cards marker missing')
-              s = s.replace(needle, replacement, 1)
-          if 'async function loadRealtime()' not in s:
-              marker = 'async function loadAnalytics(){'
-              fn = "async function loadRealtime(){try{const u=auth.currentUser;if(!u||!site)return;const token=await u.getIdToken();const r=await fetch(worker,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({action:'realtime',site})});const j=await r.json();if(!r.ok)throw new Error(j.error||'Ошибка Realtime');rtNow.textContent=fmt(j.now);rt10.textContent=fmt(j.last10)}catch(e){rtNow.textContent='—';rt10.textContent='—';console.warn('Realtime:',e.message)}}\n"
-              if marker not in s:
-                  raise SystemExit('loadAnalytics marker missing')
-              s = s.replace(marker, fn + marker, 1)
-              s = s.replace('await loadAnalytics()});', 'await loadAnalytics();await loadRealtime();setInterval(loadRealtime,15000)});', 1)
-              s = s.replace('refresh.onclick=loadAnalytics;', 'refresh.onclick=()=>{loadAnalytics();loadRealtime()};', 1)
-          p.write_text(s, encoding='utf-8')
-          print('site-analytics.html patched')
+          old = "localStorage.setItem('derev_owner_browser_v1','1');await loadAnalytics()}catch(e){loginMsg.textContent=e.message}});"
+          new = "localStorage.setItem('derev_owner_browser_v1','1');await loadAnalytics();await loadRealtime();setInterval(loadRealtime,15000)}catch(e){loginMsg.textContent=e.message}});"
+          if old in s:
+              s = s.replace(old, new, 1)
+              p.write_text(s, encoding='utf-8')
+              print('Realtime startup fixed')
+          else:
+              print('Realtime startup already fixed or marker changed')
           PY
       - name: Commit changes
         run: |
           git config user.name "derev-analytics-bot"
           git config user.email "actions@users.noreply.github.com"
-          git add analytics-client.js cloudflare-worker-qwen.js site-analytics.html
+          git add site-analytics.html
           if git diff --cached --quiet; then
             echo "No changes"
           else
-            git commit -m "Add per-site realtime GA4 analytics"
+            git commit -m "Start realtime analytics automatically"
             git push
           fi
