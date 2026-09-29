@@ -118,13 +118,35 @@ async function handleRealtime(body, env, cors) {
   if (!sa.client_email || !sa.private_key) return json({ error: 'Google Analytics service account secret is missing' }, 500, cors);
   const accessToken = await getGoogleAccessToken(sa);
   const endpoint = `https://analyticsdata.googleapis.com/v1beta/properties/${GA4_PROPERTY_ID}:runRealtimeReport`;
-  const requestBody = {metrics:[{name:'activeUsers'}],minuteRanges:[{name:'now',startMinutesAgo:0,endMinutesAgo:0},{name:'last10',startMinutesAgo:9,endMinutesAgo:0}],dimensionFilter:{filter:{fieldName:'unifiedScreenName',stringFilter:{matchType:'BEGINS_WITH',value:`${site} |`,caseSensitive:false}}}};
-  const r = await fetch(endpoint,{method:'POST',headers:{'Authorization':`Bearer ${accessToken}`,'Content-Type':'application/json'},body:JSON.stringify(requestBody)});
-  const data = await r.json();
-  if (!r.ok) return json({ error:data?.error?.message || 'GA4 Realtime API error' }, r.status, cors);
-  let now=0,last10=0;
-  for (const row of data.rows || []) { const range=row.dimensionValues?.[0]?.value||''; const users=n(row.metricValues?.[0]?.value); if(range==='now')now=users; if(range==='last10')last10=users; }
-  return json({ok:true,site,now,last10,updatedAt:new Date().toISOString()},200,cors);
+
+  async function realtimeFor(minutesAgo) {
+    const requestBody = {
+      dimensions: [{name:'unifiedScreenName'}],
+      metrics: [{name:'activeUsers'}],
+      minuteRanges: [{startMinutesAgo:minutesAgo,endMinutesAgo:0}]
+    };
+    const r = await fetch(endpoint, {
+      method:'POST',
+      headers:{'Authorization':`Bearer ${accessToken}`,'Content-Type':'application/json'},
+      body:JSON.stringify(requestBody)
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data?.error?.message || 'GA4 Realtime API error');
+    const prefix = `${site} |`;
+    let total = 0;
+    for (const row of data.rows || []) {
+      const title = row.dimensionValues?.[0]?.value || '';
+      if (title.toLowerCase().startsWith(prefix.toLowerCase())) total += n(row.metricValues?.[0]?.value);
+    }
+    return total;
+  }
+
+  try {
+    const [now,last10] = await Promise.all([realtimeFor(1), realtimeFor(9)]);
+    return json({ok:true,site,now,last10,updatedAt:new Date().toISOString()},200,cors);
+  } catch (e) {
+    return json({error:e?.message || 'GA4 Realtime API error'},500,cors);
+  }
 }
 
 async function handleAnalytics(body, env, cors) {
