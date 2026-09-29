@@ -1,0 +1,31 @@
+name: Install invisible counter
+on:
+  push:
+    paths:
+      - '.github/workflows/install-counter.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  install:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Add counter to index
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          if not p.exists(): raise SystemExit(0)
+          s=p.read_text(encoding='utf-8')
+          tag='<script defer src="https://derev-studio.github.io/photo-gallery/counter.js" data-site="photo-gallery"></script>'
+          if tag not in s:
+              s=s.replace('</body>',tag+'\n</body>') if '</body>' in s else s+'\n'+tag+'\n'
+              p.write_text(s,encoding='utf-8')
+          PY
+      - name: Commit if changed
+        run: |
+          git config user.name "derev-studio-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add index.html
+          git diff --cached --quiet || (git commit -m "Add invisible visit counter" && git push)
