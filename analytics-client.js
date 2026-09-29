@@ -4,6 +4,45 @@
   const FIRST_SEEN_KEY = 'derev_visitor_first_seen_v1';
   const OWNER_KEY = 'derev_owner_browser_v1';
 
+  // ===== STORAGE BRIDGE =====
+  // The old gallery code still calls ImgBB. Intercept only that upload call
+  // and transparently send the heavy image to Cloudinary instead.
+  // Firebase continues to store only the returned URL and gallery metadata.
+  const nativeFetch = window.fetch.bind(window);
+  window.fetch = async function(input, init) {
+    const url = typeof input === 'string' ? input : (input && input.url) || '';
+    if (url.startsWith('https://api.imgbb.com/1/upload')) {
+      const oldBody = init && init.body;
+      const file = oldBody instanceof FormData ? oldBody.get('image') : null;
+      if (!(file instanceof Blob)) {
+        throw new Error('Фото не найдено для загрузки в Cloudinary');
+      }
+
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('upload_preset', 'kaktus');
+
+      const cloudinaryResponse = await nativeFetch(
+        'https://api.cloudinary.com/v1_1/i1lysqxk/image/upload',
+        { method: 'POST', body: fd }
+      );
+      const cloudinaryData = await cloudinaryResponse.json();
+      if (!cloudinaryResponse.ok || !cloudinaryData.secure_url) {
+        throw new Error((cloudinaryData.error && cloudinaryData.error.message) || 'Cloudinary upload failed');
+      }
+
+      // Return an ImgBB-shaped response so the existing gallery code keeps working.
+      return new Response(JSON.stringify({
+        success: true,
+        data: { url: cloudinaryData.secure_url }
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    return nativeFetch(input, init);
+  };
+
   function makeId() {
     const bytes = new Uint8Array(8);
     crypto.getRandomValues(bytes);
