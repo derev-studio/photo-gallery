@@ -14,57 +14,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Fix realtime GA4 matching
+      - name: Patch realtime worker
+        env:
+          FN_B64: YXN5bmMgZnVuY3Rpb24gaGFuZGxlUmVhbHRpbWUoYm9keSwgZW52LCBjb3JzKSB7CiAgY29uc3Qgc2l0ZSA9IFN0cmluZyhib2R5Py5zaXRlIHx8ICcnKS50cmltKCkucmVwbGFjZSgvW15hLXpBLVowLTlfLV0vZywnJyk7CiAgaWYgKCFzaXRlKSByZXR1cm4ganNvbih7IGVycm9yOiAnc2l0ZSBpcyByZXF1aXJlZCcgfSwgNDAwLCBjb3JzKTsKICBjb25zdCBzYSA9IEpTT04ucGFyc2UoZW52LkdPT0dMRV9BTkFMWVRJQ1NfU0VSVklDRV9BQ0NPVU5UIHx8ICd7fScpOwogIGlmICghc2EuY2xpZW50X2VtYWlsIHx8ICFzYS5wcml2YXRlX2tleSkgcmV0dXJuIGpzb24oeyBlcnJvcjogJ0dvb2dsZSBBbmFseXRpY3Mgc2VydmljZSBhY2NvdW50IHNlY3JldCBpcyBtaXNzaW5nJyB9LCA1MDAsIGNvcnMpOwogIGNvbnN0IGFjY2Vzc1Rva2VuID0gYXdhaXQgZ2V0R29vZ2xlQWNjZXNzVG9rZW4oc2EpOwogIGNvbnN0IGVuZHBvaW50ID0gYGh0dHBzOi8vYW5hbHl0aWNzZGF0YS5nb29nbGVhcGlzLmNvbS92MWJldGEvcHJvcGVydGllcy8ke0dBNF9QUk9QRVJUWV9JRH06cnVuUmVhbHRpbWVSZXBvcnRgOwoKICBhc3luYyBmdW5jdGlvbiByZWFsdGltZUZvcihtaW51dGVzQWdvKSB7CiAgICBjb25zdCByZXF1ZXN0Qm9keSA9IHsKICAgICAgZGltZW5zaW9uczogW3tuYW1lOid1bmlmaWVkU2NyZWVuTmFtZSd9XSwKICAgICAgbWV0cmljczogW3tuYW1lOidhY3RpdmVVc2Vycyd9XSwKICAgICAgbWludXRlUmFuZ2VzOiBbe3N0YXJ0TWludXRlc0FnbzptaW51dGVzQWdvLGVuZE1pbnV0ZXNBZ286MH1dCiAgICB9OwogICAgY29uc3QgciA9IGF3YWl0IGZldGNoKGVuZHBvaW50LCB7CiAgICAgIG1ldGhvZDonUE9TVCcsCiAgICAgIGhlYWRlcnM6eydBdXRob3JpemF0aW9uJzpgQmVhcmVyICR7YWNjZXNzVG9rZW59YCwnQ29udGVudC1UeXBlJzonYXBwbGljYXRpb24vanNvbid9LAogICAgICBib2R5OkpTT04uc3RyaW5naWZ5KHJlcXVlc3RCb2R5KQogICAgfSk7CiAgICBjb25zdCBkYXRhID0gYXdhaXQgci5qc29uKCk7CiAgICBpZiAoIXIub2spIHRocm93IG5ldyBFcnJvcihkYXRhPy5lcnJvcj8ubWVzc2FnZSB8fCAnR0E0IFJlYWx0aW1lIEFQSSBlcnJvcicpOwogICAgY29uc3QgcHJlZml4ID0gYCR7c2l0ZX0gfGA7CiAgICBsZXQgdG90YWwgPSAwOwogICAgZm9yIChjb25zdCByb3cgb2YgZGF0YS5yb3dzIHx8IFtdKSB7CiAgICAgIGNvbnN0IHRpdGxlID0gcm93LmRpbWVuc2lvblZhbHVlcz8uWzBdPy52YWx1ZSB8fCAnJzsKICAgICAgaWYgKHRpdGxlLnRvTG93ZXJDYXNlKCkuc3RhcnRzV2l0aChwcmVmaXgudG9Mb3dlckNhc2UoKSkpIHRvdGFsICs9IG4ocm93Lm1ldHJpY1ZhbHVlcz8uWzBdPy52YWx1ZSk7CiAgICB9CiAgICByZXR1cm4gdG90YWw7CiAgfQoKICB0cnkgewogICAgY29uc3QgW25vdyxsYXN0MTBdID0gYXdhaXQgUHJvbWlzZS5hbGwoW3JlYWx0aW1lRm9yKDEpLCByZWFsdGltZUZvcig5KV0pOwogICAgcmV0dXJuIGpzb24oe29rOnRydWUsc2l0ZSxub3csbGFzdDEwLHVwZGF0ZWRBdDpuZXcgRGF0ZSgpLnRvSVNPU3RyaW5nKCl9LDIwMCxjb3JzKTsKICB9IGNhdGNoIChlKSB7CiAgICByZXR1cm4ganNvbih7ZXJyb3I6ZT8ubWVzc2FnZSB8fCAnR0E0IFJlYWx0aW1lIEFQSSBlcnJvcid9LDUwMCxjb3JzKTsKICB9Cn0K
         run: |
+          printf '%s' "$FN_B64" | base64 --decode > /tmp/realtime.js
           python - <<'PY'
           from pathlib import Path
-          from textwrap import dedent
-          p = Path('cloudflare-worker-qwen.js')
-          s = p.read_text(encoding='utf-8')
-          start = s.index('async function handleRealtime(body, env, cors) {')
-          end = s.index('\nasync function handleAnalytics(body, env, cors) {', start)
-          fn = dedent('''
-          async function handleRealtime(body, env, cors) {
-            const site = String(body?.site || '').trim().replace(/[^a-zA-Z0-9_-]/g,'');
-            if (!site) return json({ error: 'site is required' }, 400, cors);
-            const sa = JSON.parse(env.GOOGLE_ANALYTICS_SERVICE_ACCOUNT || '{}');
-            if (!sa.client_email || !sa.private_key) return json({ error: 'Google Analytics service account secret is missing' }, 500, cors);
-            const accessToken = await getGoogleAccessToken(sa);
-            const endpoint = `https://analyticsdata.googleapis.com/v1beta/properties/${GA4_PROPERTY_ID}:runRealtimeReport`;
-
-            async function realtimeFor(minutesAgo) {
-              const requestBody = {
-                dimensions: [{name:'unifiedScreenName'}],
-                metrics: [{name:'activeUsers'}],
-                minuteRanges: [{startMinutesAgo:minutesAgo,endMinutesAgo:0}]
-              };
-              const r = await fetch(endpoint, {
-                method:'POST',
-                headers:{'Authorization':`Bearer ${accessToken}`,'Content-Type':'application/json'},
-                body:JSON.stringify(requestBody)
-              });
-              const data = await r.json();
-              if (!r.ok) throw new Error(data?.error?.message || 'GA4 Realtime API error');
-              const prefix = `${site} |`;
-              let total = 0;
-              for (const row of data.rows || []) {
-                const title = row.dimensionValues?.[0]?.value || '';
-                if (title.toLowerCase().startsWith(prefix.toLowerCase())) total += n(row.metricValues?.[0]?.value);
-              }
-              return total;
-            }
-
-            try {
-              const [now,last10] = await Promise.all([realtimeFor(1), realtimeFor(9)]);
-              return json({ok:true,site,now,last10,updatedAt:new Date().toISOString()},200,cors);
-            } catch (e) {
-              return json({error:e?.message || 'GA4 Realtime API error'},500,cors);
-            }
-          }
-          ''').lstrip()
-          s = s[:start] + fn + s[end:]
-          p.write_text(s, encoding='utf-8')
-          print('Realtime worker fixed')
+          p=Path('cloudflare-worker-qwen.js')
+          s=p.read_text(encoding='utf-8')
+          start=s.index('async function handleRealtime(body, env, cors) {')
+          end=s.index('\nasync function handleAnalytics(body, env, cors) {', start)
+          fn=Path('/tmp/realtime.js').read_text(encoding='utf-8')
+          p.write_text(s[:start]+fn+s[end:], encoding='utf-8')
           PY
       - name: Commit changes
         run: |
