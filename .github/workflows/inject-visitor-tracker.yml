@@ -1,0 +1,48 @@
+name: Inject visitor tracker
+
+on:
+  push:
+    paths:
+      - '.github/workflows/inject-visitor-tracker.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  inject:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inject analytics-client.js into public HTML pages
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          skip = {'analytics.html','admin.html','cleanup-firebase.html'}
+          changed = []
+          for p in Path('.').glob('*.html'):
+              if p.name in skip:
+                  continue
+              s = p.read_text(encoding='utf-8')
+              if 'analytics-client.js' in s:
+                  continue
+              tag = '<script src="analytics-client.js"></script>\n'
+              if '</head>' in s:
+                  s = s.replace('</head>', tag + '</head>', 1)
+              else:
+                  continue
+              p.write_text(s, encoding='utf-8')
+              changed.append(p.name)
+          print('Updated:', ', '.join(changed) if changed else 'nothing')
+          PY
+      - name: Commit changes
+        run: |
+          git config user.name "derev-analytics-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add '*.html'
+          if git diff --cached --quiet; then
+            echo "No changes"
+          else
+            git commit -m "Inject anonymous visitor tracker into public pages"
+            git push
+          fi
