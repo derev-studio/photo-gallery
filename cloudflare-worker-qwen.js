@@ -111,6 +111,8 @@ async function handleAnalytics(body, env, cors) {
   const days = [0, 7, 30].includes(rawDays) ? rawDays : 7;
   const startDate = days === 0 ? 'today' : `${days - 1}daysAgo`;
   const dateRange = { startDate, endDate: 'today' };
+  const site = String(body?.site || '').trim().replace(/[^a-zA-Z0-9_-]/g,'');
+  const siteFilter = site ? {filter:{fieldName:'pagePath',stringFilter:{matchType:'BEGINS_WITH',value:`/${site}/`,caseSensitive:false}}} : null;
 
   const sa = JSON.parse(env.GOOGLE_ANALYTICS_SERVICE_ACCOUNT || '{}');
   if (!sa.client_email || !sa.private_key) {
@@ -137,6 +139,7 @@ async function handleAnalytics(body, env, cors) {
     report(dateRange, ['mobileDeviceBranding','mobileDeviceModel'], ['activeUsers'], 100),
     report(dateRange, ['continent','country'], ['activeUsers'], 250)
   ];
+  if (siteFilter) requests.forEach(q => q.dimensionFilter = siteFilter);
 
   const reports = await runInChunks(endpoint, accessToken, requests, 5);
   const s = reports[0]?.rows?.[0]?.metricValues || [];
@@ -167,6 +170,7 @@ async function handleAnalytics(body, env, cors) {
       report(dateRange, ['customUser:visitor_id','dateHourMinute','country','region','city','deviceCategory','browser','operatingSystem','screenResolution'], ['sessions','screenPageViews','userEngagementDuration'], 500),
       report(dateRange, ['customUser:visitor_id','browserVersion','operatingSystemVersion','language','hostname','pagePath','sessionSourceMedium','newVsReturning'], ['sessions','screenPageViews'], 500)
     ];
+    if (siteFilter) visitorReqs.forEach(q => q.dimensionFilter = siteFilter);
     const vr = await runInChunks(endpoint, accessToken, visitorReqs, 5);
     visitorProfiles = mergeVisitorProfiles(vr[0], vr[1]);
     visitorProfilesStatus = 'ok';
@@ -178,7 +182,7 @@ async function handleAnalytics(body, env, cors) {
   summary.engagementRate = summary.sessions ? Math.round((summary.engagedSessions / summary.sessions) * 1000) / 10 : 0;
 
   return json({
-    ok:true, propertyId:GA4_PROPERTY_ID, days, summary,
+    ok:true, propertyId:GA4_PROPERTY_ID, days, site, summary,
     locations, deviceProfiles, browserVersions, osVersions, languages, visitorTypes, sources,
     pages:pageRows.slice(0,150), sites:aggregateSites(pageRows), ages, genders, hours, weekdays, mobileModels, continents,
     visitorProfiles, visitorProfilesStatus,
@@ -216,7 +220,11 @@ function genderName(v){return ({male:'Мужчины',female:'Женщины'})[
 
 function aggregateSites(pageRows){
   const map=new Map();
-  for(const r of pageRows){const name=r.host||'Не определено';const cur=map.get(name)||{name,users:0,views:0};cur.users+=r.users;cur.views+=r.views;map.set(name,cur);}
+  for(const r of pageRows){
+    const seg=String(r.path||'/').split('?')[0].split('/').filter(Boolean)[0]||'root';
+    const cur=map.get(seg)||{name:seg,users:0,views:0};
+    cur.users+=r.users;cur.views+=r.views;map.set(seg,cur);
+  }
   return [...map.values()].sort((a,b)=>b.views-a.views).slice(0,60);
 }
 
