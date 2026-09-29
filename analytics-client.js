@@ -3,6 +3,7 @@
   const VISITOR_KEY = 'derev_visitor_id_v1';
   const FIRST_SEEN_KEY = 'derev_visitor_first_seen_v1';
   const OWNER_KEY = 'derev_owner_browser_v1';
+  const WORKER_URL = 'https://photo-ai-qwen.qerevv.workers.dev/';
   const FIREBASE_CONFIG = {
     apiKey: 'AIzaSyB2X3o7KwYFkMfsskKoWpQYBrws8L-Mn9w',
     authDomain: 'photo-gallery-18193.firebaseapp.com',
@@ -84,15 +85,12 @@
   };
 
   document.addEventListener('DOMContentLoaded', () => {
-    // On analytics page make the only visible back button return to the gallery,
-    // so there is no confusion between two different admin pages.
     const oldAdminLink = document.querySelector('.top a[href="admin.html"]');
     if (oldAdminLink) {
       oldAdminLink.href = 'index.html';
       oldAdminLink.textContent = '← Фотогалерея';
     }
 
-    // Google login for the main gallery. The old "Гость" label becomes clickable.
     const status = document.getElementById('userStatus');
     if (!status || !window.firebase) return;
 
@@ -104,23 +102,52 @@
     analyticsLink.textContent = '📊 Аналитика';
     analyticsLink.className = 'lang-btn';
     analyticsLink.style.textDecoration = 'none';
-    analyticsLink.style.display = 'inline-flex';
+    analyticsLink.style.display = 'none';
     analyticsLink.style.alignItems = 'center';
     const controls = status.parentElement;
     if (controls && !controls.querySelector('a[href="analytics.html"]')) controls.appendChild(analyticsLink);
+
+    async function verifyOwner(user) {
+      analyticsLink.style.display = 'none';
+      if (!user) {
+        window.DerevVisitor.unmarkOwner();
+        return false;
+      }
+      try {
+        const token = await user.getIdToken();
+        const r = await fetch(WORKER_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+          body: JSON.stringify({ action: 'whoami' })
+        });
+        const data = await r.json();
+        if (r.ok && data.isOwner === true) {
+          window.DerevVisitor.markOwner();
+          analyticsLink.style.display = 'inline-flex';
+          return true;
+        }
+      } catch (e) {
+        console.warn('Owner check failed:', e);
+      }
+      window.DerevVisitor.unmarkOwner();
+      return false;
+    }
 
     const startAuth = () => {
       const ready = () => {
         try {
           if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
           const auth = firebase.auth();
-          auth.onAuthStateChanged(user => {
+          auth.onAuthStateChanged(async user => {
             if (user) {
+              const isOwner = await verifyOwner(user);
               const shortName = user.displayName || user.email || 'Google';
-              status.textContent = (localStorage.getItem(OWNER_KEY) === '1' ? '👑 ' : '✅ ') + shortName;
+              status.textContent = (isOwner ? '👑 ' : '✅ ') + shortName;
               status.title = 'Нажмите, чтобы выйти';
             } else {
-              status.textContent = '👤 Гость — войти Google';
+              analyticsLink.style.display = 'none';
+              window.DerevVisitor.unmarkOwner();
+              status.textContent = '👤 Войти через Google';
               status.title = 'Нажмите, чтобы войти через Google';
             }
           });
