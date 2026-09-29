@@ -32,4 +32,21 @@
   document.addEventListener('visibilitychange',()=>{
     if(document.visibilityState==='visible')presence();
   });
+
+  // Put the existing photo editor back into the Photo Gallery UI.
+  if(site==='photo-gallery' && !location.pathname.endsWith('/editor.html')){
+    const addEditorLink=()=>{
+      if(document.getElementById('derev-editor-link'))return;
+      const host=document.querySelector('.header-controls')||document.querySelector('.tabs')||document.body;
+      const link=document.createElement('a');
+      link.id='derev-editor-link';
+      link.href='editor.html';
+      link.textContent='🎨 Редактор';
+      link.title='Открыть фоторедактор';
+      link.style.cssText='display:inline-flex;align-items:center;justify-content:center;text-decoration:none;background:#1a3a6b;color:#fff;border-radius:40px;padding:7px 16px;font:600 13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;white-space:nowrap;box-shadow:0 3px 10px rgba(26,58,107,.18)';
+      host.appendChild(link);
+    };
+    if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',addEditorLink,{once:true});
+    else addEditorLink();
+  }
 })();
