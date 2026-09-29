@@ -83,9 +83,16 @@
     }
   };
 
-  // Google login for the main gallery. The old "Гость" label becomes clickable.
-  // Analytics page has its own login, so this block runs only where #userStatus exists.
   document.addEventListener('DOMContentLoaded', () => {
+    // On analytics page make the only visible back button return to the gallery,
+    // so there is no confusion between two different admin pages.
+    const oldAdminLink = document.querySelector('.top a[href="admin.html"]');
+    if (oldAdminLink) {
+      oldAdminLink.href = 'index.html';
+      oldAdminLink.textContent = '← Фотогалерея';
+    }
+
+    // Google login for the main gallery. The old "Гость" label becomes clickable.
     const status = document.getElementById('userStatus');
     if (!status || !window.firebase) return;
 
