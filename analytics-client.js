@@ -25,14 +25,9 @@
     const parts = location.pathname.split('/').filter(Boolean);
     const first = parts[0] || '';
     const file = (parts[parts.length - 1] || '').toLowerCase();
-
-    // Служебные страницы считаем отдельными сайтами/разделами,
-    // чтобы в аналитике было сразу видно, кто заходил именно в админку.
     if (file === 'admin.html') return 'admin';
     if (file === 'site-analytics.html') return 'site-analytics';
     if (file === 'analytics.html') return 'analytics';
-
-    // Корневые страницы Империи считаем обычным сайтом `empire`.
     if (!first || (parts.length === 1 && /\.html?$/i.test(first))) return 'empire';
     return first;
   }
@@ -135,7 +130,9 @@
   };
 
   document.addEventListener('DOMContentLoaded', () => {
-    document.querySelectorAll('a[href="analytics.html"], a[href$="/analytics.html"]').forEach(a => a.remove());
+    if (!['admin','analytics','site-analytics'].includes(site)) {
+      document.querySelectorAll('a[href="analytics.html"], a[href$="/analytics.html"]').forEach(a => a.remove());
+    }
     const status = document.getElementById('userStatus');
     if (!status || !window.firebase) return;
     status.style.cursor = 'pointer';
