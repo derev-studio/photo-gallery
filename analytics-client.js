@@ -24,13 +24,25 @@
   function siteId() {
     const parts = location.pathname.split('/').filter(Boolean);
     const first = parts[0] || '';
-    // Корневой сайт «Империя»: /, /articles.html, /universe.html и другие одиночные HTML-страницы
-    // считаются одним сайтом root. Проекты в подпапках остаются отдельными сайтами.
     if (!first || (parts.length === 1 && /\.html?$/i.test(first))) return 'root';
     return first;
   }
 
   const site = siteId();
+
+  // Для Империи корневые страницы физически лежат в /, а сервер аналитики
+  // умеет фильтровать проекты по первому сегменту пути. Поэтому только в GA
+  // записываем виртуальный путь /root/... — сам адрес сайта для посетителя не меняется.
+  function analyticsLocation() {
+    if (site !== 'root') return location.href;
+    const u = new URL(location.href);
+    const p = u.pathname === '/' ? '/' : u.pathname;
+    u.pathname = '/root' + p;
+    return u.href;
+  }
+
+  const trackedLocation = analyticsLocation();
+
   let visitorId = localStorage.getItem(VISITOR_KEY);
   if (!visitorId) {
     visitorId = makeId();
@@ -78,7 +90,7 @@
       visitor_first_seen: firstSeen.slice(0, 10),
       site_id: site,
       visit_number: visitNumber,
-      page_location: location.href,
+      page_location: trackedLocation,
       page_title: document.title,
       screen_size: `${screen.width}x${screen.height}`,
       viewport_size: `${innerWidth}x${innerHeight}`,
@@ -90,7 +102,7 @@
   }
 
   const analyticsPageTitle = `${site} | ${document.title}`;
-  gtag('event', 'page_view', { page_location: location.href, page_title: analyticsPageTitle });
+  gtag('event', 'page_view', { page_location: trackedLocation, page_title: analyticsPageTitle });
   sendVisit();
 
   window.DerevVisitor = {
