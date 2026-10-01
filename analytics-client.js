@@ -24,20 +24,19 @@
   function siteId() {
     const parts = location.pathname.split('/').filter(Boolean);
     const first = parts[0] || '';
-    if (!first || (parts.length === 1 && /\.html?$/i.test(first))) return 'root';
+    // Корневые страницы Империи считаем отдельным обычным сайтом `empire`,
+    // так же как photo-gallery, roni и остальные проекты.
+    if (!first || (parts.length === 1 && /\.html?$/i.test(first))) return 'empire';
     return first;
   }
 
   const site = siteId();
 
-  // Для Империи корневые страницы физически лежат в /, а сервер аналитики
-  // умеет фильтровать проекты по первому сегменту пути. Поэтому только в GA
-  // записываем виртуальный путь /root/... — сам адрес сайта для посетителя не меняется.
   function analyticsLocation() {
-    if (site !== 'root') return location.href;
+    if (site !== 'empire') return location.href;
     const u = new URL(location.href);
     const p = u.pathname === '/' ? '/' : u.pathname;
-    u.pathname = '/root' + p;
+    u.pathname = '/empire' + p;
     return u.href;
   }
 
