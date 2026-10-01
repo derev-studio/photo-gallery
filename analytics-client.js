@@ -22,8 +22,12 @@
   }
 
   function siteId() {
-    const first = location.pathname.split('/').filter(Boolean)[0];
-    return first || 'root';
+    const parts = location.pathname.split('/').filter(Boolean);
+    const first = parts[0] || '';
+    // Корневой сайт «Империя»: /, /articles.html, /universe.html и другие одиночные HTML-страницы
+    // считаются одним сайтом root. Проекты в подпапках остаются отдельными сайтами.
+    if (!first || (parts.length === 1 && /\.html?$/i.test(first))) return 'root';
+    return first;
   }
 
   const site = siteId();
@@ -85,10 +89,8 @@
     });
   }
 
-  // Standard page_view for GA4 reports and Realtime.
   const analyticsPageTitle = `${site} | ${document.title}`;
   gtag('event', 'page_view', { page_location: location.href, page_title: analyticsPageTitle });
-
   sendVisit();
 
   window.DerevVisitor = {
@@ -102,7 +104,6 @@
       ownerMark = 'owner';
       this.isOwner = true;
       setUserProperties();
-      // Не исключаем владельца. Помечаем его и сохраняем текущий визит как визит владельца.
       sendVisit('owner_visit_identified');
       return true;
     },
@@ -116,21 +117,14 @@
   };
 
   document.addEventListener('DOMContentLoaded', () => {
-    // Analytics must never be advertised on public pages.
     document.querySelectorAll('a[href="analytics.html"], a[href$="/analytics.html"]').forEach(a => a.remove());
-
-    // Keep only Google sign-in on the main photo gallery.
     const status = document.getElementById('userStatus');
     if (!status || !window.firebase) return;
-
     status.style.cursor = 'pointer';
     status.title = 'Нажмите, чтобы войти через Google';
 
     async function verifyOwner(user) {
-      if (!user) {
-        window.DerevVisitor.unmarkOwner();
-        return false;
-      }
+      if (!user) { window.DerevVisitor.unmarkOwner(); return false; }
       try {
         const token = await user.getIdToken();
         const r = await fetch(WORKER_URL, {
@@ -139,13 +133,8 @@
           body: JSON.stringify({ action: 'whoami' })
         });
         const data = await r.json();
-        if (r.ok && data.isOwner === true) {
-          window.DerevVisitor.markOwner();
-          return true;
-        }
-      } catch (e) {
-        console.warn('Owner check failed:', e);
-      }
+        if (r.ok && data.isOwner === true) { window.DerevVisitor.markOwner(); return true; }
+      } catch (e) { console.warn('Owner check failed:', e); }
       window.DerevVisitor.unmarkOwner();
       return false;
     }
@@ -169,22 +158,15 @@
           });
           status.onclick = async () => {
             try {
-              if (auth.currentUser) {
-                await auth.signOut();
-              } else {
-                const provider = new firebase.auth.GoogleAuthProvider();
-                await auth.signInWithPopup(provider);
-              }
+              if (auth.currentUser) await auth.signOut();
+              else await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
             } catch (e) {
               console.error('Google login error:', e);
               alert('Не удалось войти через Google: ' + (e.message || e));
             }
           };
-        } catch (e) {
-          console.error('Firebase Auth init error:', e);
-        }
+        } catch (e) { console.error('Firebase Auth init error:', e); }
       };
-
       if (firebase.auth) return ready();
       const s = document.createElement('script');
       s.src = 'https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js';
