@@ -24,8 +24,15 @@
   function siteId() {
     const parts = location.pathname.split('/').filter(Boolean);
     const first = parts[0] || '';
-    // Корневые страницы Империи считаем отдельным обычным сайтом `empire`,
-    // так же как photo-gallery, roni и остальные проекты.
+    const file = (parts[parts.length - 1] || '').toLowerCase();
+
+    // Служебные страницы считаем отдельными сайтами/разделами,
+    // чтобы в аналитике было сразу видно, кто заходил именно в админку.
+    if (file === 'admin.html') return 'admin';
+    if (file === 'site-analytics.html') return 'site-analytics';
+    if (file === 'analytics.html') return 'analytics';
+
+    // Корневые страницы Империи считаем обычным сайтом `empire`.
     if (!first || (parts.length === 1 && /\.html?$/i.test(first))) return 'empire';
     return first;
   }
