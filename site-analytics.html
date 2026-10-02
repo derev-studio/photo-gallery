@@ -48,7 +48,7 @@ const auth=firebase.auth();
 const worker='https://photo-ai-qwen.qerevv.workers.dev/';
 const rawSite=new URLSearchParams(location.search).get('site')||'';
 const site=rawSite==='root'?'empire':rawSite;
-const names={empire:'Империя Александра Деревяшкина','photo-gallery':'Фотогалерея + AI','elki-palki':'Ёлки-палки / кружки','dasha-risunki':'Даша — рисунки',roni:'Рони','toda-poriya':'Toda Poriya','cow-site':'Cow site','derevyashkin-writer':'Сайт писателя','cactus-books':'Книги / кактусы','photo-preview':'Photo Preview',scanner:'Scanner',pult:'Pult'};
+const names={empire:'Империя Александра Деревяшкина','irina-photo':'Ирина — фото','photo-gallery':'Фотогалерея + AI','elki-palki':'Ёлки-палки / кружки','dasha-risunki':'Даша — рисунки',roni:'Рони','toda-poriya':'Toda Poriya','cow-site':'Cow site','derevyashkin-writer':'Сайт писателя','cactus-books':'Книги / кактусы','photo-preview':'Photo Preview',scanner:'Scanner',pult:'Pult'};
 pageTitle.textContent='📊 '+(names[site]||site||'Сайт')+' — аналитика';
 let currentDays=7;
 loginBtn.onclick=()=>auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(e=>loginMsg.textContent=e.message);
