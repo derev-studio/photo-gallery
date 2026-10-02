@@ -155,7 +155,7 @@ async function handleAnalytics(body, env, cors) {
   const startDate = days === 0 ? 'today' : `${days - 1}daysAgo`;
   const dateRange = { startDate, endDate: 'today' };
   const site = String(body?.site || '').trim().replace(/[^a-zA-Z0-9_-]/g,'');
-  const siteFilter = site ? {filter:{fieldName:'pagePath',stringFilter:{matchType:'BEGINS_WITH',value:`/${site}/`,caseSensitive:false}}} : null;
+  const siteFilter = !site ? null : site === 'irina-photo'\n    ? {filter:{fieldName:'hostName',stringFilter:{matchType:'EXACT',value:'irina-photo.github.io',caseSensitive:false}}}\n    : {filter:{fieldName:'pagePath',stringFilter:{matchType:'BEGINS_WITH',value:`/${site}/`,caseSensitive:false}}};
 
   const sa = JSON.parse(env.GOOGLE_ANALYTICS_SERVICE_ACCOUNT || '{}');
   if (!sa.client_email || !sa.private_key) {
