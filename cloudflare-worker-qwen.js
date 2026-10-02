@@ -155,7 +155,9 @@ async function handleAnalytics(body, env, cors) {
   const startDate = days === 0 ? 'today' : `${days - 1}daysAgo`;
   const dateRange = { startDate, endDate: 'today' };
   const site = String(body?.site || '').trim().replace(/[^a-zA-Z0-9_-]/g,'');
-  const siteFilter = !site ? null : site === 'irina-photo'\n    ? {filter:{fieldName:'hostName',stringFilter:{matchType:'EXACT',value:'irina-photo.github.io',caseSensitive:false}}}\n    : {filter:{fieldName:'pagePath',stringFilter:{matchType:'BEGINS_WITH',value:`/${site}/`,caseSensitive:false}}};
+  const siteFilter = !site ? null : site === 'irina-photo'
+    ? {filter:{fieldName:'hostName',stringFilter:{matchType:'EXACT',value:'irina-photo.github.io',caseSensitive:false}}}
+    : {filter:{fieldName:'pagePath',stringFilter:{matchType:'BEGINS_WITH',value:`/${site}/`,caseSensitive:false}}};
 
   const sa = JSON.parse(env.GOOGLE_ANALYTICS_SERVICE_ACCOUNT || '{}');
   if (!sa.client_email || !sa.private_key) {
@@ -174,7 +176,7 @@ async function handleAnalytics(body, env, cors) {
     report(dateRange, ['language'], ['activeUsers'], 100),
     report(dateRange, ['newVsReturning'], ['activeUsers','sessions'], 10),
     report(dateRange, ['sessionSourceMedium','defaultChannelGroup'], ['activeUsers','sessions'], 150),
-    report(dateRange, ['hostname','pagePath'], ['screenPageViews','activeUsers'], 500),
+    report(dateRange, ['hostName','pagePath'], ['screenPageViews','activeUsers'], 500),
     report(dateRange, ['userAgeBracket'], ['activeUsers'], 20),
     report(dateRange, ['userGender'], ['activeUsers'], 10),
     report(dateRange, ['dateHour'], ['activeUsers','sessions','screenPageViews'], 1000),
