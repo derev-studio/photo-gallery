@@ -22,6 +22,9 @@
   }
 
   function siteId() {
+    const host = location.hostname.toLowerCase();
+    if (host === 'irina-photo.github.io') return 'irina-photo';
+    if (host === 'dasha-home.github.io') return 'dasha-soul-art';
     const parts = location.pathname.split('/').filter(Boolean);
     const first = parts[0] || '';
     const file = (parts[parts.length - 1] || '').toLowerCase();
