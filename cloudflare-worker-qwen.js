@@ -213,7 +213,7 @@ async function handleAnalytics(body, env, cors) {
   try {
     const visitorReqs = [
       report(dateRange, ['customUser:visitor_id','dateHourMinute','country','region','city','deviceCategory','browser','operatingSystem','screenResolution'], ['sessions','screenPageViews','userEngagementDuration'], 500),
-      report(dateRange, ['customUser:visitor_id','browserVersion','operatingSystemVersion','language','hostname','pagePath','sessionSourceMedium','newVsReturning'], ['sessions','screenPageViews'], 500)
+      report(dateRange, ['customUser:visitor_id','browserVersion','operatingSystemVersion','language','hostName','pagePath','sessionSourceMedium','newVsReturning'], ['sessions','screenPageViews'], 500)
     ];
     if (siteFilter) visitorReqs.forEach(q => q.dimensionFilter = siteFilter);
     const vr = await runInChunks(endpoint, accessToken, visitorReqs, 5);
@@ -266,7 +266,8 @@ function genderName(v){return ({male:'Мужчины',female:'Женщины'})[
 function aggregateSites(pageRows){
   const map=new Map();
   for(const r of pageRows){
-    const seg=String(r.path||'/').split('?')[0].split('/').filter(Boolean)[0]||'root';
+    const host=String(r.host||'').toLowerCase();
+    const seg=host==='irina-photo.github.io' ? 'irina-photo' : (String(r.path||'/').split('?')[0].split('/').filter(Boolean)[0]||'root');
     const cur=map.get(seg)||{name:seg,users:0,views:0};
     cur.users+=r.users;cur.views+=r.views;map.set(seg,cur);
   }
