@@ -1,11 +1,13 @@
 const FIREBASE_API_KEY = 'AIzaSyB2X3o7KwYFkMfsskKoWpQYBrws8L-Mn9w';
 const OWNER_EMAIL_SHA256 = '9dc9231a1eb41216aa77db40cfec6336ccbbec33c24198693f2220aa10d5dcdf';
+const IRINA_EMAIL_SHA256 = '261ef6021295b44e0ecd450541c7f0be9377b493819285f1c9d1704db9d64872';
 const GA4_PROPERTY_ID = '556452970';
 
 export default {
   async fetch(request, env) {
     const origin = request.headers.get('Origin') || '';
-    const allowedOrigin = 'https://derev-studio.github.io';
+    const allowedOrigins = ['https://derev-studio.github.io', 'https://irina-photo.github.io'];
+    const allowedOrigin = allowedOrigins.includes(origin) ? origin : allowedOrigins[0];
     const cors = {
       'Access-Control-Allow-Origin': origin === allowedOrigin ? origin : allowedOrigin,
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
@@ -25,7 +27,7 @@ export default {
       if (!user) return json({ error: 'Сессия Google недействительна. Войдите снова.' }, 401, cors);
 
       const emailHash = await sha256(String(user.email || '').trim().toLowerCase());
-      const isOwner = emailHash === OWNER_EMAIL_SHA256;
+      const isOwner = emailHash === OWNER_EMAIL_SHA256 || emailHash === IRINA_EMAIL_SHA256;
 
       const body = await request.json();
       if (body.action === 'whoami') {
