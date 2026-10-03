@@ -59,7 +59,19 @@ export default {
         const options = { method, headers: ghHeaders };
         if (method !== 'GET') options.body = JSON.stringify(body.payload || {});
         const gh = await fetch('https://api.github.com' + path, options);
-        const data = await gh.json().catch(() => ({}));
+        const raw = await gh.text();
+        let data = {};
+        try { data = raw ? JSON.parse(raw) : {}; } catch (_) { data = {}; }
+        if (!gh.ok) {
+          return json({
+            error: data?.message || ('GitHub HTTP ' + gh.status),
+            githubStatus: gh.status,
+            documentationUrl: data?.documentation_url || '',
+            acceptedPermissions: gh.headers.get('X-Accepted-GitHub-Permissions') || '',
+            oauthScopes: gh.headers.get('X-OAuth-Scopes') || '',
+            raw: data?.message ? '' : raw.slice(0, 500)
+          }, gh.status, cors);
+        }
         return json(data, gh.status, cors);
       }
 
