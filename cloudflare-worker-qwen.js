@@ -34,6 +34,35 @@ export default {
         return json({ ok: true, isOwner, name: user.displayName || '', email: user.email || '' }, 200, cors);
       }
 
+      // GitHub bridge for Irina admin. The PAT stays only in Cloudflare Secret.
+      // Strictly limited to the Contents API of one repository.
+      if (body.action === 'irinaGithub') {
+        if (!isOwner) return json({ error: 'Нет доступа к админке Ирины' }, 403, cors);
+        if (origin !== 'https://irina-photo.github.io') return json({ error: 'Недопустимый источник' }, 403, cors);
+        if (!env.GITHUB_TOKEN) return json({ error: 'GITHUB_TOKEN is not configured' }, 500, cors);
+
+        const method = String(body.method || 'GET').toUpperCase();
+        if (!['GET', 'PUT', 'DELETE'].includes(method)) return json({ error: 'GitHub method is not allowed' }, 405, cors);
+
+        const path = String(body.path || '');
+        const prefix = '/repos/irina-photo/irina-photo.github.io/contents/';
+        if (!path.startsWith(prefix) || path.includes('..') || path.includes('?')) {
+          return json({ error: 'GitHub path is not allowed' }, 400, cors);
+        }
+
+        const ghHeaders = {
+          'Authorization': 'Bearer ' + env.GITHUB_TOKEN,
+          'Accept': 'application/vnd.github+json',
+          'X-GitHub-Api-Version': '2022-11-28',
+          'Content-Type': 'application/json'
+        };
+        const options = { method, headers: ghHeaders };
+        if (method !== 'GET') options.body = JSON.stringify(body.payload || {});
+        const gh = await fetch('https://api.github.com' + path, options);
+        const data = await gh.json().catch(() => ({}));
+        return json(data, gh.status, cors);
+      }
+
       if (body.action === 'analytics') {
         if (!isOwner) return json({ error: 'Analytics доступна только владельцу' }, 403, cors);
         return handleAnalytics(body, env, cors);
