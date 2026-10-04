@@ -39,8 +39,12 @@
   const site = siteId();
 
   function analyticsLocation() {
-    if (site !== 'empire') return location.href;
     const u = new URL(location.href);
+    if (site === 'yaniv') {
+      u.pathname = '/yaniv/yaniv.html';
+      return u.href;
+    }
+    if (site !== 'empire') return location.href;
     const p = u.pathname === '/' ? '/' : u.pathname;
     u.pathname = '/empire' + p;
     return u.href;
