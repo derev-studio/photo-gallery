@@ -31,6 +31,7 @@
     if (file === 'admin.html') return 'admin';
     if (file === 'site-analytics.html') return 'site-analytics';
     if (file === 'analytics.html') return 'analytics';
+    if (file === 'yaniv.html') return 'yaniv';
     if (!first || (parts.length === 1 && /\.html?$/i.test(first))) return 'empire';
     return first;
   }
