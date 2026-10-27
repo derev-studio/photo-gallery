@@ -32,6 +32,7 @@
     if (file === 'site-analytics.html') return 'site-analytics';
     if (file === 'analytics.html') return 'analytics';
     if (file === 'yaniv.html') return 'yaniv';
+    if (file === 'ya-progolosoval.html') return 'ya-progolosoval';
     if (file === 'case-journey.html') return 'case-journey';
     if (file === 'ryzhik-professor.html') return 'ryzhik-professor';
     if (file === 'rytsar-v-voilochnykh-tapochkakh.html') return 'rytsar-v-voilochnykh-tapochkakh';
@@ -47,7 +48,7 @@
       u.pathname = '/yaniv/yaniv.html';
       return u.href;
     }
-    if (site === 'ryzhik-professor' || site === 'rytsar-v-voilochnykh-tapochkakh' || site === 'case-journey') {
+    if (site === 'ryzhik-professor' || site === 'rytsar-v-voilochnykh-tapochkakh' || site === 'case-journey' || site === 'ya-progolosoval') {
       u.pathname = `/${site}${u.pathname}`;
       return u.href;
     }
