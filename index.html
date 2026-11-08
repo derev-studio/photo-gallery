@@ -14,6 +14,7 @@
     <link rel="canonical" href="https://derev-studio.github.io/photo-gallery/">
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
     <style>
         /* ===== БАЗА ===== */
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -434,7 +435,7 @@
         .quick-actions .secondary:hover { background:#edf7f0; }
         /* Вход, темы и переключатели не нужны для обычной публикации. */
         .header-controls,.tab[data-tab="tab2"] { display:none; }
-        #userStatus { cursor:pointer; font-size:13px; background:#e8f3ec; color:#25674f; padding:7px 12px; }
+        #userStatus { cursor:pointer; font-size:13px; background:#e8f3ec; color:#25674f; padding:7px 12px; text-decoration:none; }
         .gallery-item img { cursor:zoom-in; }
         #lightbox {
             display:none; position:fixed; inset:0; z-index:12000;
@@ -495,7 +496,7 @@
                 <button class="lang-btn active" id="lang-ru" onclick="setLang('ru')">РУС</button>
                 <button class="lang-btn" id="lang-en" onclick="setLang('en')">ENG</button>
             </div>
-            <span class="user-status" id="userStatus" title="Войти через Google">👤 Войти</span>
+            <a class="user-status" id="userStatus" href="admin.html" title="Вход владельца">👤 Войти</a>
         </header>
 
         <!-- ВКЛАДКИ -->
@@ -1450,6 +1451,7 @@
                         isAdmin = response.ok && result.isOwner === true;
                     } catch (e) { console.warn('Проверка владельца:', e); }
                 }
+                updateUserStatus();
                 if (document.getElementById('tab3').classList.contains('active')) renderCatalog();
             });
         }, 400);
