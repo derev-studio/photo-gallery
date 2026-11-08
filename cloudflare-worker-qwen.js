@@ -16,6 +16,9 @@ export default {
     };
 
     if (request.method === 'OPTIONS') return new Response(null, { headers: cors });
+    if (request.method === 'GET' && new URL(request.url).pathname === '/health') {
+      return json({ ok: true, robotReview: 'qwen3-vl-flash' }, 200, cors);
+    }
     if (request.method !== 'POST') return json({ error: 'POST only' }, 405, cors);
 
     try {
@@ -94,6 +97,13 @@ export default {
         return handleRealtime(body, env, cors);
       }
 
+      if (body.action === 'robotReview') {
+        if (origin !== 'https://derev-studio.github.io') return json({ error: 'Недопустимый источник' }, 403, cors);
+        // Paid vision requests are owner-only until public-user quotas are configured.
+        if (!isOwner) return json({ error: 'Разговор с настоящим ИИ пока доступен владельцу галереи' }, 403, cors);
+        return handleRobotReview(body, env, cors);
+      }
+
       if (!env.QWEN_API_KEY) return json({ error: 'QWEN_API_KEY is not configured' }, 500, cors);
 
       const model = String(body.model || '');
@@ -162,6 +172,49 @@ export default {
     }
   }
 };
+
+async function handleRobotReview(body, env, cors) {
+  if (!env.QWEN_API_KEY) return json({ error: 'Ключ Qwen не настроен' }, 503, cors);
+  const image = String(body.image || '');
+  if (!/^data:image\/jpeg;base64,[a-zA-Z0-9+/=]+$/.test(image) || image.length > 1800000) {
+    return json({ error: 'Не удалось подготовить фотографию для ИИ' }, 413, cors);
+  }
+
+  const host = 'https://ws-jhgwe40j4chzmyh2.ap-southeast-1.maas.aliyuncs.com';
+  const requestBody = {
+    model: 'qwen3-vl-flash',
+    messages: [
+      { role: 'system', content: 'Ты смотришь на фотографию и пишешь два НЕЗАВИСИМЫХ комментария по-русски. Педант — вдумчивая женщина-фотокритик: точно оценивает композицию, свет, сюжет и предлагает одно конкретное улучшение. Циник — остроумный мужчина-художник: замечает сюжет, характер и неожиданные смыслы; говорит по-доброму, иронично, без грубости. Они должны иметь РАЗНЫЕ мнения и не повторять фразы. Не придумывай предметы, которых не видно. Ответь только JSON-объектом с двумя строками: pedant и cynic, по 2-3 предложения в каждой.' },
+      { role: 'user', content: [
+        { type: 'image_url', image_url: { url: image } },
+        { type: 'text', text: 'Обсудите конкретно эту фотографию как два разных собеседника, с художественным вкусом. Укажи только то, что реально видно.' }
+      ] }
+    ],
+    response_format: { type: 'json_object' },
+    temperature: 0.82,
+    max_tokens: 480,
+    enable_thinking: false
+  };
+  const response = await fetch(host + '/compatible-mode/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + env.QWEN_API_KEY },
+    body: JSON.stringify(requestBody)
+  });
+  let data = {};
+  try { data = await response.json(); } catch { /* Remote service may be unavailable. */ }
+  if (!response.ok) {
+    return json({ error: data?.error?.message || data?.message || 'Служба Qwen сейчас недоступна' }, 502, cors);
+  }
+  const answer = data?.choices?.[0]?.message?.content;
+  const raw = typeof answer === 'string' ? answer : Array.isArray(answer) ? answer.map(part => part.text || '').join('') : '';
+  let review;
+  try { review = JSON.parse(raw.match(/\{[\s\S]*\}/)?.[0] || ''); }
+  catch { return json({ error: 'ИИ прислал неполный ответ. Попробуйте ещё раз' }, 502, cors); }
+  if (typeof review?.pedant !== 'string' || typeof review?.cynic !== 'string' || !review.pedant.trim() || !review.cynic.trim()) {
+    return json({ error: 'ИИ пока не сформулировал два разных мнения' }, 502, cors);
+  }
+  return json({ pedant: review.pedant.slice(0, 700), cynic: review.cynic.slice(0, 700) }, 200, cors);
+}
 
 async function handleImgBBUpload(request, user, env, cors) {
   if (!env.IMGBB_API_KEY) return json({ error: 'ImgBB пока не подключён владельцем сайта' }, 503, cors);
