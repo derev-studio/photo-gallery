@@ -159,11 +159,11 @@
 
         .scan-wrapper {
             position: relative;
-            max-width: 800px; margin: 0 auto 20px;
+            max-width: 500px; margin: 0 auto 12px;
             border-radius: 20px; overflow: hidden;
             background: #000; border: 3px solid #1a3a6b;
         }
-        .scan-wrapper img { width: 100%; display: block; }
+        .scan-wrapper img { width: 100%; max-height: 290px; object-fit: contain; display: block; }
         .laser-line {
             position: absolute; left: 0; width: 100%; height: 4px;
             background: #ffd700;
@@ -656,6 +656,7 @@
         let uploadedDataUrl = "";
         let detectedCategory = "";
         let lastRobotReview = null;
+        let technicalRobotReview = null;
         let lastRobotFile = null;
         let currentAuthor = "";
         let isPro = false;
@@ -763,6 +764,7 @@
             detectedCategory = '';
             lastRobotFile = null;
             lastRobotReview = null;
+            technicalRobotReview = null;
             uploadStatus.textContent = '';
             document.getElementById('file-btn').textContent = '✅ ' + file.name;
             document.getElementById('file-help').textContent = `${(file.size/1048576).toFixed(1)} МБ`;
@@ -940,10 +942,12 @@
                 else if (q.contrast < 0.14) cynic = 'Мягкость может быть красивой, но немного выразительного света добавило бы кадру характера.';
                 else if (q.detail < 0.032) cynic = 'Кадр атмосферный, но детали теряются. Проверь точку фокусировки или штатив.';
                 else cynic = 'Технически кадр смотрится уверенно. А теперь главный вопрос художнику: что в нём заставляет зрителя задержаться?';
+                technicalRobotReview = {pedant, cynic};
                 showRobotReview(pedant, cynic);
                 document.getElementById('term-log').textContent = '✅ Оценка готова. Это приблизительная проверка качества изображения, не художественный приговор. Если звук не слышен, нажмите «Послушать роботов».';
             } catch (error) {
-                showRobotReview('Фотография выбрана. Не удалось измерить резкость и освещение в этом формате.', 'Техника — не всё. Сюжет и настроение всё равно решает автор.');
+                technicalRobotReview = {pedant:'Фотография выбрана. Не удалось измерить резкость и освещение в этом формате.', cynic:'Техника — не всё. Сюжет и настроение всё равно решает автор.'};
+                showRobotReview(technicalRobotReview.pedant, technicalRobotReview.cynic);
                 document.getElementById('term-log').textContent = 'Фотографию можно опубликовать; для проверки качества попробуйте JPG или PNG.';
             }
         }
@@ -1114,8 +1118,8 @@
                     log.innerHTML += `<br><b style="color:#74b9ff;">[Вердикт]</b>: "${detectedCategory}" (${score}%)<br>`;
                     log.scrollTop = log.scrollHeight;
 
-                    const pedant = `По содержанию это, вероятно, «${detectedCategory}». ${lastRobotReview?.pedant || 'Технические параметры ещё не проверены.'}`;
-                    const cynic = lastRobotReview?.cynic || 'Жанр понятен. А вот настроение и замысел остаются за автором.';
+                    const pedant = `По содержанию это, вероятно, «${detectedCategory}». ${technicalRobotReview?.pedant || 'Технические параметры ещё не проверены.'}`;
+                    const cynic = technicalRobotReview?.cynic || 'Жанр понятен. А вот настроение и замысел остаются за автором.';
                     showRobotReview(pedant, cynic);
                     handshake.classList.add('show');
                     setTimeout(() => handshake.classList.remove('show'), 3000);
