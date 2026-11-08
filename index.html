@@ -191,15 +191,19 @@
             border-radius: 16px; object-fit: cover; object-position: center 20%;
             box-shadow: 0 6px 18px rgba(25,40,54,.14);
             transition: box-shadow .25s ease;
+            transform-origin: center 85%;
+            animation: robot-idle 3.6s ease-in-out infinite alternate;
         }
-        .robot-card.speaking .avatar { animation: robot-speaking .8s ease-in-out infinite alternate; }
+        .robot-card.cynic .avatar { animation-delay: -1.7s; }
+        .robot-card.speaking .avatar { animation: robot-speaking .55s ease-in-out infinite alternate; }
         .robot-card.pedant.speaking .avatar { box-shadow: 0 0 0 4px rgba(0,210,211,.35), 0 8px 24px rgba(0,210,211,.28); }
         .robot-card.cynic.speaking .avatar { box-shadow: 0 0 0 4px rgba(255,107,107,.35), 0 8px 24px rgba(255,107,107,.28); }
-        @keyframes robot-speaking { from { transform: translateY(0); } to { transform: translateY(-4px); } }
+        @keyframes robot-idle { from { transform: rotate(-2deg) translateY(2px); } to { transform: rotate(2deg) translateY(-4px); } }
+        @keyframes robot-speaking { from { transform: rotate(-3deg) translateY(1px) scale(1); } to { transform: rotate(3deg) translateY(-10px) scale(1.05); } }
         @media (max-width: 700px) {
             .robot-card .avatar { width: 104px; height: 136px; flex-basis: 104px; }
         }
-        @media (prefers-reduced-motion: reduce) { .robot-card.speaking .avatar { animation: none; } }
+        @media (prefers-reduced-motion: reduce) { .robot-card .avatar, .robot-card.speaking .avatar { animation: none; } }
         .robot-card .speech { font-size: 17px; line-height: 1.55; margin-top: 6px; }
         .handshake {
             display: none; justify-content: center; font-size: 28px;
@@ -925,8 +929,11 @@
             window.speechSynthesis.cancel();
             document.querySelectorAll('#tab2 .robot-card').forEach(card => card.classList.remove('speaking'));
             const voices = window.speechSynthesis.getVoices().filter(v => /^ru\b/i.test(v.lang));
-            [[lastRobotReview.pedant, 0.9, 0.85, voices[0]],
-             [lastRobotReview.cynic, 0.90, 1.2, voices[1] || voices[0]]].forEach(([message, rate, pitch, voice], i) => {
+            // На Mac Milena — женский русский голос, Yuri — мужской.
+            const female = voices.find(v => /milena|милена|irina|ирина|katya|катя|anna|анна/i.test(v.name)) || voices[0];
+            const male = voices.find(v => /yuri|yury|юрий|dmitri|дмитрий|pavel|павел|aleks|алекс|maksim|максим/i.test(v.name)) || voices.find(v => v !== female) || female;
+            [[lastRobotReview.pedant, 0.91, 1.06, female],
+             [lastRobotReview.cynic, 0.68, 0.72, male]].forEach(([message, rate, pitch, voice], i) => {
                 const phrase = new SpeechSynthesisUtterance((i === 0 ? 'Педант. ' : 'Циник. ') + message);
                 phrase.lang = 'ru-RU';
                 if (voice) phrase.voice = voice;
@@ -950,12 +957,33 @@
                 const detail = q.detail < 0.032 ? 'мелкие детали выглядят мягко' : 'детали достаточно различимы';
                 const resolution = Math.min(q.width,q.height) < 900 ? 'Разрешение небольшое — крупная печать может быть ограничена.' : 'Разрешение подходит для просмотра в галерее.';
                 const pedant = `Размер ${q.width} на ${q.height} пикселей. ${light}, ${contrast}, ${detail}. ${resolution}`;
-                let cynic;
-                if (q.brightness < 0.32) cynic = 'Света маловато. Если это не задуманный мрачный настрой, попробуй немного открыть тени.';
-                else if (q.brightness > 0.76) cynic = 'Свет хочет стать главным героем. Попробуй слегка уменьшить экспозицию — пусть сюжет проявится.';
-                else if (q.contrast < 0.14) cynic = 'Мягкость может быть красивой, но немного выразительного света добавило бы кадру характера.';
-                else if (q.detail < 0.032) cynic = 'Кадр атмосферный, но детали теряются. Проверь точку фокусировки или штатив.';
-                else cynic = 'Технически кадр смотрится уверенно. А теперь главный вопрос художнику: что в нём заставляет зрителя задержаться?';
+                let suggestions;
+                if (q.brightness < 0.32) suggestions = [
+                    'Ночь в кадре — это настроение. Но можно чуть открыть тени, если там прячется главный герой.',
+                    'Темнота получилась серьёзная. Хорошо, когда зритель видит тайну, а не просто чёрный прямоугольник.',
+                    'Света мало. Возможно, так и задумано, но я бы проверил, читается ли главный предмет.'
+                ];
+                else if (q.brightness > 0.76) suggestions = [
+                    'Свет решил забрать себе всю славу. Немного приглуши яркие участки — пусть сюжет дышит.',
+                    'Воздушно, но светлые детали могут исчезнуть. Проверь самые яркие места.',
+                    'Очень светлый кадр. Если это авторский приём — отлично, иначе стоит вернуть фактуру бликам.'
+                ];
+                else if (q.contrast < 0.14) suggestions = [
+                    'Мягкий свет успокаивает. Но спроси себя: где у зрителя должна остановиться мысль?',
+                    'Здесь почти шёпот вместо крика. Попробуй подчеркнуть главный силуэт.',
+                    'Мягкость красива, но немного выразительных теней иногда делает историю глубже.'
+                ];
+                else if (q.detail < 0.032) suggestions = [
+                    'Настроение есть, а детали будто ускользают. Интересно, это задумка или фокус шалит?',
+                    'Мягкие детали могут работать как сон. Если это не сон — проверь резкость.',
+                    'В этом кадре хочется задержаться, но точка внимания пока не очень определённая.'
+                ];
+                else suggestions = [
+                    'С техникой всё прилично. Теперь главное: почему незнакомец должен остановиться именно у этого снимка?',
+                    'Форма уверенная. А где здесь тот неожиданный штрих, ради которого стоит смотреть второй раз?',
+                    'Кадр держится крепко. Осталось понять, какую историю он рассказывает зрителю.'
+                ];
+                const cynic = suggestions[Math.floor(Math.random() * suggestions.length)];
                 technicalRobotReview = {pedant, cynic};
                 showRobotReview(pedant, cynic);
                 document.getElementById('term-log').textContent = '✅ Оценка готова. Это приблизительная проверка качества изображения, не художественный приговор. Если звук не слышен, нажмите «Послушать роботов».';
@@ -1132,8 +1160,22 @@
                     log.innerHTML += `<br><b style="color:#74b9ff;">[Вердикт]</b>: "${detectedCategory}" (${score}%)<br>`;
                     log.scrollTop = log.scrollHeight;
 
-                    const pedant = `По содержанию это, вероятно, «${detectedCategory}». ${technicalRobotReview?.pedant || 'Технические параметры ещё не проверены.'}`;
-                    const cynic = technicalRobotReview?.cynic || 'Жанр понятен. А вот настроение и замысел остаются за автором.';
+                    const runnerUp = output[1] ? categoryMap[output[1].label] || output[1].label : '';
+                    const pedant = `Трансформер предполагает жанр «${detectedCategory}» (оценка ${score}%). ${runnerUp ? `Второй вариант: «${runnerUp}». ` : ''}${technicalRobotReview?.pedant || 'Технические параметры ещё не проверены.'}`;
+                    const genreIdeas = {
+                        'Жанр Ню': ['Здесь всё решает пластика света, а не смелость сюжета.', 'Деликатная линия бывает красноречивее любого объяснения.'],
+                        'Загадка': ['Люблю кадры, которые не дают ответа с первого взгляда.', 'Абстракция хороша, если за ней чувствуется мысль, а не просто случайность.'],
+                        'Портретный зал': ['В портрете ищу взгляд, за которым стоит целая история.', 'Лицо запоминается не красотой, а настоящим выражением.'],
+                        'Макромир': ['Крошечный мир часто драматичнее большого — лишь бы детали не терялись.', 'Макро требует точности, зато дарит зрителю новый взгляд на привычное.'],
+                        'Пейзажи': ['Природа прекрасна сама. А что именно увидел в ней автор?', 'В пейзаже хочется найти не только красоту, но и направление взгляда.'],
+                        'Архитектура': ['Линии зданий сами выстраивают композицию. Проверь их ритм.', 'Камень и стекло тоже умеют рассказывать истории — если найти угол.'],
+                        'Животный мир': ['Животному не прикажешь позировать, зато живой момент бесценен.', 'Здесь важна встреча взглядов, а не только резкость шерсти или перьев.'],
+                        'Натюрморт': ['Предметы молчат, но хороший свет заставляет их разговаривать.', 'Самые простые вещи могут сыграть целый спектакль.'],
+                        'Спорт': ['Движение ловят в долю секунды — оно должно чувствоваться даже в покое.', 'Сила кадра не в скорости, а в кульминации движения.'],
+                        'Оранжерея': ['Растения не торопятся, и нам стоит присмотреться к их линиям.', 'В ботанике красота часто спрятана в форме, которую никто не замечает.']
+                    };
+                    const ideas = genreIdeas[detectedCategory] || ['Класс жанра — только подсказка. Что почувствует зритель, решает автор.'];
+                    const cynic = `${ideas[Math.floor(Math.random() * ideas.length)]} ${technicalRobotReview?.cynic || ''}`.trim();
                     showRobotReview(pedant, cynic);
                     handshake.classList.add('show');
                     setTimeout(() => handshake.classList.remove('show'), 3000);
