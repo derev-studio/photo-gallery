@@ -212,17 +212,17 @@
             padding-bottom: 10px; margin-bottom: 18px;
         }
         .gallery-grid {
-            display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-            gap: 24px;
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
+            gap: 18px;
         }
         .gallery-item {
-            background: #fff; border-radius: 20px; overflow: hidden;
+            min-width: 0; background: #fff; border-radius: 20px; overflow: hidden;
             box-shadow: 0 4px 12px rgba(0,0,0,0.04); transition: 0.25s;
         }
         .gallery-item:hover { transform: translateY(-4px); box-shadow: 0 12px 24px rgba(0,0,0,0.08); }
         .gallery-item img {
             width: 100%; max-height: 300px; object-fit: contain;
-            display: block; cursor: pointer; background: #000;
+            display: block; cursor: pointer; background: #f2f6f4;
         }
         .gallery-item .info { padding: 16px; background: #fff; }
         .action-bar {
@@ -248,33 +248,42 @@
         /* КОММЕНТАРИИ */
         .comments-wrap { margin-top: 14px; padding-top: 14px; border-top: 1px solid rgba(26,35,50,0.06); }
         .comment {
-            display: flex; flex-wrap: wrap; gap: 6px 12px;
-            padding: 6px 0; border-bottom: 1px solid rgba(26,35,50,0.04);
-            align-items: baseline;
+            display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 8px 12px;
+            padding: 14px 0; border-bottom: 1px solid rgba(26,35,50,0.07);
+            align-items: start; min-width: 0;
         }
-        .comment .c-author { font-weight: 600; }
-        .comment .c-text { flex: 1; word-break: break-word; }
-        .comment .c-time { font-size: 11px; color: #999; }
-        .comment .c-actions { display: flex; gap: 6px; }
+        .comment .c-author { grid-column: 1; font-weight: 700; }
+        .comment .c-text {
+            grid-column: 1 / -1; min-width: 0; max-width: 78ch;
+            overflow-wrap: anywhere; white-space: pre-wrap; word-break: normal;
+            font-size: 15px; line-height: 1.65; color: #243247;
+        }
+        .comment .c-time { grid-column: 2; grid-row: 1; font-size: 12px; color: #75818d; }
+        .comment .c-actions { grid-column: 1 / -1; display: flex; gap: 10px; }
         .comment .c-actions button { background: none; border: none; font-size: 13px; cursor: pointer; }
-        .comment .reply-form { display: none; flex-basis: 100%; margin-top: 6px; gap: 8px; flex-wrap: wrap; }
+        .comment .reply-form { display: none; grid-column: 1 / -1; margin-top: 6px; gap: 8px; flex-wrap: wrap; }
         .comment .reply-form.show { display: flex; }
-        .comment .reply-form input { flex: 1; min-width: 120px; padding: 6px 14px; border: 1px solid #cbd5e1; border-radius: 40px; }
+        .comment .reply-form textarea { flex: 1 1 220px; min-width: 0; min-height: 70px; padding: 10px 13px; border: 1px solid #cbd5e1; border-radius: 12px; font: inherit; resize: vertical; }
         .comment .reply-form button { background: #1a3a6b; color: #fff; border: none; border-radius: 40px; padding: 6px 16px; cursor: pointer; }
-        .comment .child-comments { margin-left: 30px; border-left: 2px solid rgba(26,35,50,0.08); padding-left: 16px; }
+        .comment .child-comments { grid-column: 1 / -1; margin-left: 12px; border-left: 2px solid rgba(26,35,50,0.08); padding-left: 16px; min-width: 0; }
+        .comment .child-comments:empty { display: none; }
 
         .comment-input-area {
-            display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap;
+            display: flex; flex-direction: column; align-items: flex-start;
+            gap: 10px; margin-top: 14px; max-width: 850px;
         }
-        .comment-input-area input {
-            flex: 1; min-width: 120px; padding: 6px 14px;
-            border: 1px solid #cbd5e1; border-radius: 40px;
-            background: #fff; color: #1a2332;
+        .comment-input-area textarea {
+            display: block; width: 100%; min-width: 0; min-height: 126px;
+            padding: 13px 15px; border: 1px solid #b8cfc5; border-radius: 14px;
+            background: #fff; color: #1a2332; font: inherit; font-size: 16px;
+            line-height: 1.55; resize: vertical;
         }
+        .comment-input-area textarea:focus { outline: 2px solid #6aa78b; outline-offset: 2px; }
         .comment-input-area button {
-            background: #1a3a6b; color: #fff; border: none;
-            border-radius: 40px; padding: 6px 20px; cursor: pointer; font-weight: 600;
+            background: #25674f; color: #fff; border: none;
+            border-radius: 40px; padding: 10px 22px; cursor: pointer; font-weight: 600;
         }
+        .comment-input-area button:disabled { opacity: .65; cursor: wait; }
 
         .chat-box {
             background: rgba(255,255,255,0.5); border-radius: 20px;
@@ -630,6 +639,7 @@
         const ownPhotosKey = 'gallery_own_photo_ids_v1';
         const recentPhotoKey = 'gallery_recent_photo_v1';
         let ownPhotoIds = new Set();
+        const commentDrafts = new Map();
         const expandedComments = new Set();
         try { ownPhotoIds = new Set(JSON.parse(localStorage.getItem(ownPhotosKey) || '[]').map(Number)); } catch {}
         let favorites = JSON.parse(localStorage.getItem('favs') || '[]');
@@ -1088,6 +1098,8 @@
         // ===== ГАЛЕРЕЯ =====
         window.renderCatalog = function() {
             const container = document.getElementById('catalog-container');
+            const activePhoto = document.activeElement?.dataset?.commentPhoto;
+            const caret = activePhoto ? document.activeElement.selectionStart : null;
             const search = document.getElementById('search-input').value.toLowerCase();
             let filtered = allPhotos.filter(p => p.rubric !== 'Жанр Ню' || document.getElementById('show-nude').checked);
 
@@ -1159,7 +1171,7 @@
                                                     <button onclick="showReply(${item.id},'${c.id}')">↩</button>
                                                 </span>
                                                 <div class="reply-form" id="reply-${item.id}-${c.id}">
-                                                    <input type="text" placeholder="Ответ..." id="reply-input-${item.id}-${c.id}">
+                                                    <textarea rows="2" placeholder="Ответ..." id="reply-input-${item.id}-${c.id}"></textarea>
                                                     <button onclick="submitReply(${item.id},'${c.id}')">Ответить</button>
                                                 </div>
                                                 <div class="child-comments" id="replies-${item.id}-${c.id}">
@@ -1171,7 +1183,7 @@
                                         `).join('')}
                                     </div>
                                     <div class="comment-input-area">
-                                        <input type="text" id="comment-input-${item.id}" placeholder="Написать комментарий..." maxlength="200">
+                                        <textarea id="comment-input-${item.id}" data-comment-photo="${item.id}" placeholder="Ваш комментарий..." rows="4" maxlength="10000" aria-label="Написать комментарий"></textarea>
                                         <button onclick="addComment(${item.id})">Отправить</button>
                                     </div>
                                 </div>
@@ -1182,23 +1194,39 @@
                 html += `</div></div>`;
             }
             container.innerHTML = html;
+            container.querySelectorAll('textarea[data-comment-photo]').forEach(input => {
+                input.value = commentDrafts.get(input.dataset.commentPhoto) || '';
+            });
+            if (activePhoto) {
+                const input = document.getElementById(`comment-input-${activePhoto}`);
+                if (input) { input.focus(); input.setSelectionRange(caret, caret); }
+            }
         };
+        document.getElementById('catalog-container').addEventListener('input', e => {
+            if (e.target.matches('textarea[data-comment-photo]')) {
+                commentDrafts.set(e.target.dataset.commentPhoto, e.target.value);
+            }
+        });
 
         // ===== КОММЕНТАРИИ =====
-        window.addComment = function(photoId) {
+        window.addComment = async function(photoId) {
             const input = document.getElementById(`comment-input-${photoId}`);
+            if (!input) return;
             const text = input.value.trim();
             if (!text) return alert('Напишите комментарий!');
             if (!currentUser) {
                 const name = prompt('Введите ваше имя:');
                 if (!name) return;
-                currentUser = name;
+                currentUser = name.trim();
             }
+            const button = input.parentElement.querySelector('button');
+            button.disabled = true;
             const ref = db.ref('photos/' + photoId);
-            ref.once('value', snap => {
+            try {
+                const snap = await ref.once('value');
                 const photo = snap.val();
-                if (!photo) return;
-                const comments = photo.comments || [];
+                if (!photo) throw new Error('Фотография не найдена');
+                const comments = Array.isArray(photo.comments) ? photo.comments : Object.values(photo.comments || {});
                 comments.push({
                     id: Date.now() + '_' + Math.random().toString(36).slice(2,6),
                     author: currentUser,
@@ -1206,9 +1234,16 @@
                     time: new Date().toLocaleTimeString('ru-RU', {hour:'2-digit',minute:'2-digit'}),
                     replies: []
                 });
-                ref.update({ comments: comments });
-                input.value = '';
-            });
+                await ref.update({ comments });
+                commentDrafts.delete(String(photoId));
+                const liveInput = document.getElementById(`comment-input-${photoId}`);
+                if (liveInput) liveInput.value = '';
+            } catch (e) {
+                alert('Не удалось отправить: ' + e.message);
+            } finally {
+                const liveButton = document.getElementById(`comment-input-${photoId}`)?.parentElement.querySelector('button');
+                if (liveButton) liveButton.disabled = false;
+            }
         };
 
         window.deleteComment = function(photoId, commentId) {
