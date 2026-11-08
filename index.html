@@ -187,7 +187,7 @@
             padding: 16px; display: flex; align-items: center; gap: 16px;
         }
         .robot-card .avatar { font-size: 40px; }
-        .robot-card .speech { font-size: 14px; }
+        .robot-card .speech { font-size: 17px; line-height: 1.55; margin-top: 6px; }
         .handshake {
             display: none; justify-content: center; font-size: 28px;
             margin: 10px 0;
@@ -556,7 +556,7 @@
             <div class="text-center">
                 <button class="btn" id="robot-pick-btn" type="button">📷 Добавить картинку роботам</button>
                 <input type="file" id="robot-file-input" accept="image/*,.heic,.heif" aria-label="Выбрать картинку для роботов" style="display:none;">
-                <button class="btn" onclick="goToStep2()">🔬 Анализ выбранного фото</button>
+                <button class="btn" id="robot-genre-btn" onclick="goToStep2()" disabled>🔬 Узнать жанр</button>
                 <a class="btn" href="editor-ai.html" style="text-decoration:none;">🎨 ИИ‑редактор</a>
             </div>
             <div class="scan-wrapper">
@@ -575,6 +575,10 @@
             </div>
             <div class="handshake" id="handshake"><span>🤝</span> <span style="font-weight:bold; color:#d4af37;">Роботы одобряют!</span></div>
             <div class="terminal" id="term-log">[Система]: Ожидание...</div>
+            <div class="text-center mt-20">
+                <button class="btn" id="robot-voice-btn" type="button" onclick="speakRobotReview()" disabled>🔊 Послушать роботов</button>
+                <button class="btn" id="robot-publish-btn" type="button" onclick="publishRobotPhoto()" disabled>📤 Опубликовать в галерею</button>
+            </div>
             <div class="text-center mt-20">
                 <button class="btn" id="to-step-3-btn" style="display:none;" onclick="switchTab('tab3')">🖼️ Посмотреть галерею</button>
             </div>
@@ -651,6 +655,8 @@
         let selectedFile = null;
         let uploadedDataUrl = "";
         let detectedCategory = "";
+        let lastRobotReview = null;
+        let lastRobotFile = null;
         let currentAuthor = "";
         let isPro = false;
         let isAdmin = false;
@@ -754,6 +760,9 @@
             selectedFile = file;
             lastUploadedUrl = '';
             uploadedDataUrl = '';
+            detectedCategory = '';
+            lastRobotFile = null;
+            lastRobotReview = null;
             uploadStatus.textContent = '';
             document.getElementById('file-btn').textContent = '✅ ' + file.name;
             document.getElementById('file-help').textContent = `${(file.size/1048576).toFixed(1)} МБ`;
@@ -765,6 +774,9 @@
             preview.onerror = () => preview.classList.remove('show');
             document.getElementById('start-btn').disabled = false;
             document.getElementById('start-btn').textContent = 'Опубликовать';
+            document.getElementById('robot-genre-btn').disabled = false;
+            document.getElementById('robot-publish-btn').disabled = false;
+            document.getElementById('robot-voice-btn').disabled = true;
         }
         document.getElementById('file-input').addEventListener('change', e => selectPhoto(e.target.files[0]));
         const dropArea = document.getElementById('drop-area');
@@ -838,7 +850,107 @@
                 document.getElementById('term-log').textContent = 'Нажмите «Добавить картинку роботам» или на любого робота.';
                 return;
             }
+            if (lastRobotFile !== selectedFile) await reviewRobotImage(selectedFile);
             if (await initModel()) analyzeWithTransformers(selectedFile);
+        };
+
+        async function inspectRobotQuality(file) {
+            const bitmap = await createImageBitmap(file);
+            try {
+                const scale = Math.min(1, 256 / Math.max(bitmap.width, bitmap.height));
+                const width = Math.max(1, Math.round(bitmap.width * scale));
+                const height = Math.max(1, Math.round(bitmap.height * scale));
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d', {willReadFrequently:true});
+                if (!ctx) throw new Error('Canvas unavailable');
+                ctx.drawImage(bitmap, 0, 0, width, height);
+                const rgba = ctx.getImageData(0, 0, width, height).data;
+                const light = new Float32Array(width * height);
+                let sum = 0, squares = 0;
+                for (let i = 0; i < light.length; i++) {
+                    const j = i * 4;
+                    const value = (0.2126 * rgba[j] + 0.7152 * rgba[j+1] + 0.0722 * rgba[j+2]) / 255;
+                    light[i] = value;
+                    sum += value;
+                    squares += value * value;
+                }
+                let edges = 0, comparisons = 0;
+                for (let y = 0; y < height - 1; y++) {
+                    for (let x = 0; x < width - 1; x++) {
+                        const i = y * width + x;
+                        edges += Math.abs(light[i] - light[i+1]) + Math.abs(light[i] - light[i+width]);
+                        comparisons += 2;
+                    }
+                }
+                const mean = sum / light.length;
+                return {
+                    width: bitmap.width, height: bitmap.height,
+                    brightness: mean,
+                    contrast: Math.sqrt(Math.max(0, squares / light.length - mean * mean)),
+                    detail: edges / Math.max(1, comparisons)
+                };
+            } finally {
+                bitmap.close?.();
+            }
+        }
+
+        function showRobotReview(pedant, cynic) {
+            lastRobotReview = {pedant, cynic};
+            document.getElementById('pedant-text').textContent = pedant;
+            document.getElementById('cynic-text').textContent = cynic;
+            document.getElementById('robot-voice-btn').disabled = false;
+            speakRobotReview();
+        }
+
+        window.speakRobotReview = function() {
+            if (!lastRobotReview) return;
+            if (!('speechSynthesis' in window) || !('SpeechSynthesisUtterance' in window)) {
+                document.getElementById('term-log').textContent = 'Браузер не поддерживает голос. Оценка написана выше.';
+                return;
+            }
+            window.speechSynthesis.cancel();
+            const voices = window.speechSynthesis.getVoices().filter(v => /^ru\b/i.test(v.lang));
+            [[lastRobotReview.pedant, 0.9, 0.85, voices[0]],
+             [lastRobotReview.cynic, 1.06, 1.2, voices[1] || voices[0]]].forEach(([message, rate, pitch, voice], i) => {
+                const phrase = new SpeechSynthesisUtterance((i === 0 ? 'Педант. ' : 'Циник. ') + message);
+                phrase.lang = 'ru-RU';
+                if (voice) phrase.voice = voice;
+                phrase.rate = rate;
+                phrase.pitch = pitch;
+                window.speechSynthesis.speak(phrase);
+            });
+        };
+
+        async function reviewRobotImage(file) {
+            lastRobotFile = file;
+            document.getElementById('preview-img').src = previewObjectUrl;
+            document.getElementById('term-log').textContent = 'Роботы изучают свет, контраст и детализацию снимка…';
+            try {
+                const q = await inspectRobotQuality(file);
+                const light = q.brightness < 0.32 ? 'Снимок тёмный' : q.brightness > 0.76 ? 'Снимок очень светлый' : 'Освещение сбалансированное';
+                const contrast = q.contrast < 0.14 ? 'контраст мягкий' : q.contrast > 0.30 ? 'контраст высокий' : 'контраст умеренный';
+                const detail = q.detail < 0.032 ? 'мелкие детали выглядят мягко' : 'детали достаточно различимы';
+                const resolution = Math.min(q.width,q.height) < 900 ? 'Разрешение небольшое — крупная печать может быть ограничена.' : 'Разрешение подходит для просмотра в галерее.';
+                const pedant = `Размер ${q.width} на ${q.height} пикселей. ${light}, ${contrast}, ${detail}. ${resolution}`;
+                let cynic;
+                if (q.brightness < 0.32) cynic = 'Света маловато. Если это не задуманный мрачный настрой, попробуй немного открыть тени.';
+                else if (q.brightness > 0.76) cynic = 'Свет хочет стать главным героем. Попробуй слегка уменьшить экспозицию — пусть сюжет проявится.';
+                else if (q.contrast < 0.14) cynic = 'Мягкость может быть красивой, но немного выразительного света добавило бы кадру характера.';
+                else if (q.detail < 0.032) cynic = 'Кадр атмосферный, но детали теряются. Проверь точку фокусировки или штатив.';
+                else cynic = 'Технически кадр смотрится уверенно. А теперь главный вопрос художнику: что в нём заставляет зрителя задержаться?';
+                showRobotReview(pedant, cynic);
+                document.getElementById('term-log').textContent = '✅ Оценка готова. Это приблизительная проверка качества изображения, не художественный приговор. Если звук не слышен, нажмите «Послушать роботов».';
+            } catch (error) {
+                showRobotReview('Фотография выбрана. Не удалось измерить резкость и освещение в этом формате.', 'Техника — не всё. Сюжет и настроение всё равно решает автор.');
+                document.getElementById('term-log').textContent = 'Фотографию можно опубликовать; для проверки качества попробуйте JPG или PNG.';
+            }
+        }
+
+        window.publishRobotPhoto = function() {
+            if (!selectedFile) return;
+            window.goToStep3();
         };
 
         // Роботы работают только по запросу: ни модель, ни картинка при открытии сайта не загружаются.
@@ -863,12 +975,8 @@
                 document.getElementById('term-log').textContent = 'Выберите фотографию.';
                 return;
             }
-            robotPickButton.disabled = true;
-            try {
-                if (await initModel()) analyzeWithTransformers(file);
-            } finally {
-                robotPickButton.disabled = false;
-            }
+            selectPhoto(file);
+            await reviewRobotImage(file);
         });
 
         // ===== АНИМАЦИЯ РАКЕТЫ (покадровая) =====
@@ -1006,8 +1114,9 @@
                     log.innerHTML += `<br><b style="color:#74b9ff;">[Вердикт]</b>: "${detectedCategory}" (${score}%)<br>`;
                     log.scrollTop = log.scrollHeight;
 
-                    pedantText.textContent = `Сканирование завершено. Комната: "${detectedCategory}".`;
-                    cynicText.textContent = `Неплохо! Отличный выбор для этой категории.`;
+                    const pedant = `По содержанию это, вероятно, «${detectedCategory}». ${lastRobotReview?.pedant || 'Технические параметры ещё не проверены.'}`;
+                    const cynic = lastRobotReview?.cynic || 'Жанр понятен. А вот настроение и замысел остаются за автором.';
+                    showRobotReview(pedant, cynic);
                     handshake.classList.add('show');
                     setTimeout(() => handshake.classList.remove('show'), 3000);
 
@@ -1015,10 +1124,8 @@
                 } catch (err) {
                     console.error(err);
                     laser.style.display = 'none';
-                    detectedCategory = 'Портретный зал';
-                    log.innerHTML += `<br><b style="color:#ff6b6b;">[Ошибка]</b> Используем категорию по умолчанию.<br>`;
-                    pedantText.textContent = 'Ошибка анализа. Отправляем в Портретный зал.';
-                    cynicText.textContent = 'Ну ладно, пусть будет портрет.';
+                    detectedCategory = '';
+                    log.innerHTML += `<br><b style="color:#ff6b6b;">[Ошибка]</b> Жанр не определён, оценка качества сохранена.<br>`;
                     document.getElementById('to-step-3-btn').style.display = 'inline-block';
                 }
             };
@@ -1109,7 +1216,7 @@
                 const photo = {
                     id: Date.now(),
                     img: lastUploadedUrl,
-                    rubric: 'Другое',
+                    rubric: detectedCategory || 'Другое',
                     author: currentAuthor,
                     ownerUid: account.uid,
                     storage: 'imgbb',
@@ -1135,6 +1242,9 @@
                 // При следующем выборе файла загрузка начнётся с чистого листа.
                 selectedFile = null;
                 lastUploadedUrl = '';
+                lastRobotFile = null;
+                document.getElementById('robot-publish-btn').disabled = true;
+                document.getElementById('robot-genre-btn').disabled = true;
                 document.getElementById('file-input').value = '';
                 document.getElementById('file-btn').textContent = '📷 Выбрать фото';
                 document.getElementById('file-help').textContent = '';
