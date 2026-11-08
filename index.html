@@ -579,9 +579,6 @@
                 <button class="btn" id="robot-voice-btn" type="button" onclick="speakRobotReview()" disabled>🔊 Послушать роботов</button>
                 <button class="btn" id="robot-publish-btn" type="button" onclick="publishRobotPhoto()" disabled>📤 Опубликовать в галерею</button>
             </div>
-            <div class="text-center mt-20">
-                <button class="btn" id="to-step-3-btn" style="display:none;" onclick="switchTab('tab3')">🖼️ Посмотреть галерею</button>
-            </div>
         </div>
 
         <!-- ВКЛАДКА 3 -->
@@ -1124,13 +1121,11 @@
                     handshake.classList.add('show');
                     setTimeout(() => handshake.classList.remove('show'), 3000);
 
-                    document.getElementById('to-step-3-btn').style.display = 'inline-block';
                 } catch (err) {
                     console.error(err);
                     laser.style.display = 'none';
                     detectedCategory = '';
                     log.innerHTML += `<br><b style="color:#ff6b6b;">[Ошибка]</b> Жанр не определён, оценка качества сохранена.<br>`;
-                    document.getElementById('to-step-3-btn').style.display = 'inline-block';
                 }
             };
             reader.readAsDataURL(file);
