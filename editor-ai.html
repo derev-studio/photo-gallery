@@ -18,7 +18,7 @@
 <div class="wrap">
 <div id="loginNote" class="login-note">Чтобы пользоваться редактором и личной галереей, войдите через Google.</div>
 <div class="privacy-note">Личные работы не показываются в общей галерее.</div>
-<div class="tabs"><button class="tab active" data-v="editView">Редактор</button><button class="tab" data-v="genView">Генератор</button><button class="tab" data-v="galleryView">🔒 Мои работы</button><button class="tab" onclick="location.href='index.html'">🌍 Общая галерея</button></div>
+<div class="tabs"><button class="tab active" data-v="editView">Редактор</button><button class="tab" data-v="genView">Генератор</button><button class="tab" data-v="galleryView">👤 Мои фото</button><button class="tab" onclick="location.href='index.html'">🌍 Общая галерея</button></div>
 
 <div id="editView" class="view active"><div class="grid"><aside class="card side">
 <div class="sec"><h2>1. Фото</h2><div class="sub">Загрузи фотографию для редактирования.</div><div id="drop" class="drop">Перетащи фото сюда<br><b>или нажми</b></div><input id="file" type="file" accept="image/*" hidden></div>
@@ -48,10 +48,19 @@ const FIREBASE_CONFIG={apiKey:'AIzaSyB2X3o7KwYFkMfsskKoWpQYBrws8L-Mn9w',authDoma
 const CLOUDINARY_CLOUD='i1lysqxk', CLOUDINARY_PRESET='kaktus';
 if(!firebase.apps.length)firebase.initializeApp(FIREBASE_CONFIG);
 const auth=firebase.auth(),db=firebase.database();auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(()=>{});
-const API_ENDPOINT='https://photo-ai-qwen.qerevv.workers.dev/';let sourceData='',editResult='',genResult='',currentUser=null,isOwner=false,privateWorks=[];const $=id=>document.getElementById(id);
+const API_ENDPOINT='https://photo-ai-qwen.qerevv.workers.dev/';let sourceData='',editResult='',genResult='',currentUser=null,isOwner=false,privateWorks=[],publishedPhotos=[];const $=id=>document.getElementById(id);
 function st(el,t,type=''){el.textContent=t;el.className='status show '+type}
 function oldGalleryKey(){return'ai_gallery_'+(currentUser?.uid||'guest')}
 function personalRef(){return currentUser?db.ref('users/'+currentUser.uid+'/works'):null}
+function myWorks(){
+  if(!currentUser)return [];
+  const linked=new Set(privateWorks.filter(w=>w.published).map(w=>String(w.publicId||w.id)));
+  const extra=publishedPhotos.filter(p=>p.ownerUid===currentUser.uid&&!linked.has(String(p.id))).map(p=>({
+    id:p.id,url:p.img,mode:'Моё фото',model:'',prompt:p.filename||'',time:p.date||'',
+    published:true,publicId:p.id,ownerName:p.author||'Участник',fromPublic:true
+  }));
+  return [...privateWorks,...extra].sort((a,b)=>(Number(b.id)||0)-(Number(a.id)||0));
+}
 function fileToDataUrl(file,max=1800,q=.86){return new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>{const im=new Image();im.onload=()=>{let w=im.naturalWidth,h=im.naturalHeight,k=Math.min(1,max/Math.max(w,h));w=Math.round(w*k);h=Math.round(h*k);const c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(im,0,0,w,h);res(c.toDataURL('image/jpeg',q))};im.onerror=rej;im.src=e.target.result};r.onerror=rej;r.readAsDataURL(file)})}
 function resizeData(src){return new Promise((res,rej)=>{const im=new Image();im.onload=()=>{let w=im.naturalWidth,h=im.naturalHeight,k=Math.min(1,2048/Math.max(w,h));w=Math.round(w*k);h=Math.round(h*k);const c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(im,0,0,w,h);res(c.toDataURL('image/jpeg',.92))};im.onerror=rej;im.src=src})}
 function renderFile(f){if(!f)return;const r=new FileReader();r.onload=e=>resizeData(e.target.result).then(data=>{sourceData=data;$('beforeBox').innerHTML=`<img src="${data}">`;$('afterBox').innerHTML='<div class="empty">Готов к обработке</div>';st($('editStatus'),'Фото загружено.','ok')});r.readAsDataURL(f)}
@@ -60,7 +69,37 @@ document.querySelectorAll('[data-q]').forEach(b=>b.onclick=()=>$(b.dataset.targe
 function openView(id){document.querySelectorAll('.tab[data-v]').forEach(x=>x.classList.toggle('active',x.dataset.v===id));document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));$(id).classList.add('active');if(id==='galleryView')drawGallery()}
 document.querySelectorAll('.tab[data-v]').forEach(b=>b.onclick=()=>openView(b.dataset.v));
 $('loginBtn').onclick=async()=>{try{await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider())}catch(e){alert('Не удалось войти: '+e.message)}};$('logoutBtn').onclick=()=>auth.signOut();
-let worksListener=null;auth.onAuthStateChanged(async user=>{if(worksListener){worksListener.off();worksListener=null}currentUser=user||null;$('loginBtn').style.display=user?'none':'';$('logoutBtn').style.display=user?'':'none';$('loginNote').style.display=user?'none':'block';$('accountName').textContent=user?(user.displayName||user.email||'Пользователь'):'Гость';$('avatar').style.display=user?.photoURL?'block':'none';if(user?.photoURL)$('avatar').src=user.photoURL;privateWorks=[];isOwner=false;resetModels();if(user){worksListener=personalRef();worksListener.on('value',snap=>{const v=snap.val()||{};privateWorks=Object.values(v).sort((a,b)=>(b.id||0)-(a.id||0));drawGallery()});try{const token=await user.getIdToken();const r=await fetch(API_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({action:'whoami'})});const j=await r.json();if(r.ok&&j.isOwner){isOwner=true;addProModels();$('editBadge').textContent='👑 Владельцу доступен Qwen 3.0 Pro';$('genBadge').textContent='👑 Владельцу доступен Qwen 3.0 Pro';$('editBadge').classList.add('probadge');$('genBadge').classList.add('probadge')}}catch(e){console.warn(e)}}else drawGallery()});
+let worksListener=null,publicListener=null;
+auth.onAuthStateChanged(async user=>{
+  if(worksListener){worksListener.off();worksListener=null}
+  if(publicListener){publicListener.off();publicListener=null}
+  currentUser=user||null;
+  $('loginBtn').style.display=user?'none':'';
+  $('logoutBtn').style.display=user?'':'none';
+  $('loginNote').style.display=user?'none':'block';
+  $('accountName').textContent=user?(user.displayName||user.email||'Пользователь'):'Гость';
+  $('avatar').style.display=user?.photoURL?'block':'none';
+  if(user?.photoURL)$('avatar').src=user.photoURL;
+  privateWorks=[];publishedPhotos=[];isOwner=false;resetModels();
+  if(user){
+    worksListener=personalRef();
+    worksListener.on('value',snap=>{const v=snap.val()||{};privateWorks=Object.values(v).sort((a,b)=>(b.id||0)-(a.id||0));drawGallery()});
+    // Показываем здесь и старые публичные фото этого аккаунта, без копирования и повторной загрузки.
+    publicListener=db.ref('photos');
+    publicListener.on('value',snap=>{publishedPhotos=Object.values(snap.val()||{}).filter(p=>p.ownerUid===user.uid);drawGallery()});
+    try{
+      const token=await user.getIdToken();
+      const r=await fetch(API_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({action:'whoami'})});
+      const j=await r.json();
+      if(r.ok&&j.isOwner){
+        isOwner=true;addProModels();
+        $('editBadge').textContent='👑 Владельцу доступен Qwen 3.0 Pro';
+        $('genBadge').textContent='👑 Владельцу доступен Qwen 3.0 Pro';
+        $('editBadge').classList.add('probadge');$('genBadge').classList.add('probadge');
+      }
+    }catch(e){console.warn(e)}
+  }else drawGallery();
+});
 function resetModels(){['editModel','genModel'].forEach(id=>{$(id).innerHTML='<option value="qwen-image-2.0">Qwen Image 2.0 — основной</option>'});['editBadge','genBadge'].forEach(id=>{$(id).textContent='Доступно всем вошедшим';$(id).classList.remove('probadge')})}
 function addProModels(){['editModel','genModel'].forEach(id=>{const o=document.createElement('option');o.value='qwen-image-3.0-pro';o.textContent='Qwen Image 3.0 Pro — только владелец';$(id).appendChild(o)})}
 async function callAI(mode,model,prompt,image,statusEl){if(!currentUser)throw new Error('Сначала войдите через Google');st(statusEl,'AI работает…');const token=await currentUser.getIdToken();const r=await fetch(API_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({mode,model,prompt,image})});const j=await r.json();if(!r.ok||!j.url)throw new Error(j.error||'Ошибка AI');return j.url}
@@ -110,9 +149,13 @@ async function publishWork(id){
   }catch(e){alert('Не удалось опубликовать: '+e.message)}
 }window.publishWork=publishWork;
 function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-function drawGallery(){if(!currentUser){$('gallery').innerHTML='<div class="empty">Войдите через Google, чтобы открыть «Мои работы».</div>';return}$('gallery').innerHTML=privateWorks.length?privateWorks.map(x=>`<div class="gitem"><img src="${x.url}"><div class="gmeta"><b>${esc(x.mode)}</b>${x.model?' · '+esc(x.model):''}<br>${esc(x.time)}${x.prompt?'<br>'+esc(x.prompt).slice(0,120):''}<br><b>${x.published?'🌍 Опубликовано':'🔒 Личное'}</b></div><div class="row"><button onclick="openWork('${x.id}')">Открыть</button><button class="primary" onclick="editWork('${x.id}')">✏️ В редактор</button>${x.published?'':`<button class="publish" onclick="publishWork('${x.id}')">Опубликовать</button>`}<button onclick="removeWork('${x.id}')">Удалить</button></div></div>`).join(''):'<div class="empty">Пока пусто. Нажмите «Добавить свои фото» сверху.</div>'}
-window.openWork=id=>{const x=privateWorks.find(w=>String(w.id)===String(id));if(x)window.open(x.url,'_blank')};
-window.editWork=id=>{const x=privateWorks.find(w=>String(w.id)===String(id));if(!x)return;sourceData=x.url;$('beforeBox').innerHTML=`<img src="${x.url}">`;$('afterBox').innerHTML='<div class="empty">Готов к обработке</div>';openView('editView');st($('editStatus'),'Фото из «Моих работ» перенесено в редактор.','ok')};
+function drawGallery(){
+  if(!currentUser){$('gallery').innerHTML='<div class="empty">Войдите через Google, чтобы открыть «Мои фото».</div>';return}
+  const works=myWorks();
+  $('gallery').innerHTML=works.length?works.map(x=>`<div class="gitem"><img src="${esc(x.url)}"><div class="gmeta"><b>${esc(x.mode)}</b>${x.model?' · '+esc(x.model):''}<br>${esc(x.time)}${x.prompt?'<br>'+esc(x.prompt).slice(0,120):''}<br><b>${x.published?'🌍 Опубликовано':'🔒 Личное'}</b></div><div class="row"><button onclick="openWork('${x.id}')">Открыть</button><button class="primary" onclick="editWork('${x.id}')">✏️ В редактор</button>${x.published?'':`<button class="publish" onclick="publishWork('${x.id}')">Опубликовать</button>`}${x.fromPublic?'':`<button onclick="removeWork('${x.id}')">Удалить</button>`}</div></div>`).join(''):'<div class="empty">Пока пусто. Добавьте фото одной из двух кнопок сверху.</div>';
+}
+window.openWork=id=>{const x=myWorks().find(w=>String(w.id)===String(id));if(x)window.open(x.url,'_blank')};
+window.editWork=id=>{const x=myWorks().find(w=>String(w.id)===String(id));if(!x)return;sourceData=x.url;$('beforeBox').innerHTML=`<img src="${esc(x.url)}">`;$('afterBox').innerHTML='<div class="empty">Готов к обработке</div>';openView('editView');st($('editStatus'),'Фото из «Моих работ» перенесено в редактор.','ok')};
 window.removeWork=async id=>{const x=privateWorks.find(w=>String(w.id)===String(id));if(!x)return;if(x.published&&!confirm('Работа уже опубликована. Удалить только личную копию?'))return;else if(!x.published&&!confirm('Удалить работу из «Моих работ»?'))return;await personalRef().child(String(id)).remove()};
 async function importMine(files,publish=false){
   if(!currentUser)return alert('Сначала войдите через Google');
