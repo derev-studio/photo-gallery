@@ -455,8 +455,10 @@
         .quick-actions { display:flex; justify-content:center; flex-wrap:wrap; gap:12px; align-items:center; }
         .quick-actions .secondary { border:1px solid #b3d1c2; background:white; color:#25674f; box-shadow:none; }
         .quick-actions .secondary:hover { background:#edf7f0; }
-        /* Вход, темы и переключатели не нужны для обычной публикации. */
-        .header-controls,.tab[data-tab="tab2"] { display:none; }
+        /* Лёгкая публикация остаётся главной; роботы доступны по отдельной вкладке. */
+        .header-controls { display:none; }
+        #tab2 .robot-card { cursor:pointer; }
+        #tab2 .robot-card:focus-visible { outline:3px solid #25674f; outline-offset:4px; }
         #userStatus { cursor:pointer; font-size:15px; background:#e8f3ec; color:#25674f; padding:10px 16px; border:1px solid #c7e4d5; border-radius:24px; font-weight:700; }
         .gallery-item img { cursor:zoom-in; }
         #lightbox {
@@ -551,7 +553,12 @@
         <!-- ВКЛАДКА 2 -->
         <div class="tab-content" id="tab2">
             <h2 style="text-align:center;">🤖 ИИ</h2>
-            <div class="text-center"><button class="btn" onclick="goToStep2()">🔬 Анализ</button> <a class="btn" href="editor-ai.html" style="text-decoration:none;">🎨 ИИ‑редактор</a></div>
+            <div class="text-center">
+                <button class="btn" id="robot-pick-btn" type="button">📷 Добавить картинку роботам</button>
+                <input type="file" id="robot-file-input" accept="image/*,.heic,.heif" aria-label="Выбрать картинку для роботов" style="display:none;">
+                <button class="btn" onclick="goToStep2()">🔬 Анализ выбранного фото</button>
+                <a class="btn" href="editor-ai.html" style="text-decoration:none;">🎨 ИИ‑редактор</a>
+            </div>
             <div class="scan-wrapper">
                 <img id="preview-img" src="">
                 <div class="laser-line" id="laser-scanner"></div>
@@ -828,11 +835,41 @@
         window.goToStep2 = async function() {
             switchTab('tab2');
             if (!selectedFile) {
-                document.getElementById('term-log').textContent = 'Сначала выберите фотографию во вкладке «Добавить фото».';
+                document.getElementById('term-log').textContent = 'Нажмите «Добавить картинку роботам» или на любого робота.';
                 return;
             }
             if (await initModel()) analyzeWithTransformers(selectedFile);
         };
+
+        // Роботы работают только по запросу: ни модель, ни картинка при открытии сайта не загружаются.
+        const robotFileInput = document.getElementById('robot-file-input');
+        const robotPickButton = document.getElementById('robot-pick-btn');
+        const chooseRobotImage = () => robotFileInput.click();
+        robotPickButton.addEventListener('click', chooseRobotImage);
+        document.querySelectorAll('#tab2 .robot-card').forEach(card => {
+            card.setAttribute('role', 'button');
+            card.setAttribute('tabindex', '0');
+            card.setAttribute('title', 'Добавить картинку для анализа');
+            card.addEventListener('click', chooseRobotImage);
+            card.addEventListener('keydown', e => {
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); chooseRobotImage(); }
+            });
+        });
+        robotFileInput.addEventListener('change', async e => {
+            const file = e.target.files?.[0];
+            e.target.value = '';
+            if (!file) return;
+            if (!file.type.startsWith('image/') && !/\.(heic|heif)$/i.test(file.name)) {
+                document.getElementById('term-log').textContent = 'Выберите фотографию.';
+                return;
+            }
+            robotPickButton.disabled = true;
+            try {
+                if (await initModel()) analyzeWithTransformers(file);
+            } finally {
+                robotPickButton.disabled = false;
+            }
+        });
 
         // ===== АНИМАЦИЯ РАКЕТЫ (покадровая) =====
         const rocketFrames = [
@@ -952,7 +989,7 @@
             const cynicText = document.getElementById('cynic-text');
             const handshake = document.getElementById('handshake');
 
-            log.innerHTML = `[Система]: Сканирование "${file.name}"...<br>`;
+            log.innerHTML = `[Система]: Сканирование "${escapeHtml(file.name)}"...<br>`;
             const reader = new FileReader();
             reader.onload = async function(e) {
                 uploadedDataUrl = e.target.result;
