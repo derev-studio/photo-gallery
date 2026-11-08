@@ -7,6 +7,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5">
     <title>Умная галерея — Александр Деревяшкин</title>
+    <meta name="description" content="Галерея фотографий и искусства Александра Деревяшкина и его друзей. Посмотрите работы и легко опубликуйте свою фотографию.">
+    <meta property="og:title" content="Фотогалерея Александра Деревяшкина">
+    <meta property="og:description" content="Фотографии, искусство и творчество друзей. Добавить свой снимок можно за пару нажатий.">
+    <meta property="og:type" content="website">
+    <link rel="canonical" href="https://derev-studio.github.io/photo-gallery/">
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
     <style>
@@ -405,6 +410,36 @@
             .rocket-canvas-wrap { width: 95vw; }
             .sensitivity-wrap input[type="range"] { width: 60px; }
         }
+        /* Быстрая публикация: на первом месте сама фотография, не нейросеть. */
+        body { background:linear-gradient(140deg,#edf5f0,#f9f5ee 58%,#f0f4fa); }
+        .container { max-width:1240px; box-shadow:0 22px 65px rgba(23,47,42,.09); }
+        h1 { color:#234b3b; letter-spacing:-.5px; }
+        .lead { margin:3px 0 22px; color:#607267; line-height:1.6; font-size:16px; }
+        .tab.active,.btn,.file-label { background:#25674f; }
+        .btn:hover,.file-label:hover { background:#1c503e; }
+        .sensitivity-wrap { display:none; }
+        .upload-area { position:relative; background:#f8fcf9; border:2px dashed #81b6a1; padding:25px 20px; transition:.2s; }
+        .upload-area.dragging { background:#e3f5e8; border-color:#25674f; }
+        #upload-section { display:block!important; }
+        #loading-status { font-size:17px; color:#25674f; }
+        .quick-fields { display:flex; justify-content:center; align-items:end; flex-wrap:wrap; gap:12px; margin:17px 0; }
+        .quick-field { display:flex; flex-direction:column; text-align:left; gap:5px; min-width:210px; max-width:300px; flex:1; }
+        .quick-field label { font-weight:700; font-size:14px; }
+        .quick-field input,.quick-field select { width:100%; padding:11px 13px; border:1px solid #b7cbc0; border-radius:13px; background:#fff; color:#1a2332; font:inherit; }
+        .quick-preview { display:none; max-height:300px; max-width:100%; border-radius:16px; margin:18px auto 0; object-fit:contain; box-shadow:0 6px 22px rgba(0,0,0,.08); }
+        .quick-preview.show { display:block; }
+        #upload-status { line-height:1.5; overflow-wrap:anywhere; }
+        #upload-status a { display:inline-block; margin:7px 5px 0; color:#185c45; font-weight:700; }
+        #file-btn { margin-top:4px; max-width:100%; overflow-wrap:anywhere; }
+        #start-btn { min-width:240px; padding:14px 29px; font-size:17px; }
+        .upload-help { font-size:13px; color:#607267; margin:12px auto 0; line-height:1.55; }
+        .quick-actions { display:flex; justify-content:center; flex-wrap:wrap; gap:12px; align-items:center; }
+        .quick-actions .secondary { border:1px solid #b3d1c2; background:white; color:#25674f; box-shadow:none; }
+        .quick-actions .secondary:hover { background:#edf7f0; }
+        .gallery-item img { cursor:zoom-in; }
+        .gallery-item .info { overflow-wrap:anywhere; }
+        .broken-photo { display:none; min-height:180px; background:#f6f2ea; padding:25px; text-align:center; color:#735f4e; align-items:center; justify-content:center; }
+        @media (max-width:600px) { body { padding:8px; } .container { border-radius:19px; padding:17px 12px; } .upload-area { padding:20px 12px; } .quick-field { min-width:100%; } #start-btn { width:100%; } }
     </style>
 <script src="analytics-client.js"></script>
 </head>
@@ -431,7 +466,7 @@
 
     <div class="container">
         <header>
-            <h1>🏛️ Умная галерея</h1>
+            <h1>📷 Галерея друзей</h1>
             <div class="header-controls">
                 <div class="theme-switcher" style="display:flex; gap:6px;">
                     <button class="theme-btn light" onclick="setTheme('light')" title="Светлая"></button>
@@ -450,42 +485,44 @@
         </header>
 
         <!-- ВКЛАДКИ -->
+        <p class="lead">Фотографии и искусство Александра Деревяшкина и друзей. Выберите снимок, напишите своё имя и нажмите «Опубликовать». Нейросеть — только по желанию, потом.</p>
         <div class="tabs">
-            <span class="tab active" data-tab="tab1">📸 1. Выбор</span>
-            <span class="tab" data-tab="tab2">🔬 2. Сканирование</span>
-            <span class="tab" data-tab="tab3">🏛️ 3. Галерея</span>
+            <span class="tab active" data-tab="tab1">📤 Добавить фото</span>
+            <span class="tab" data-tab="tab3">🖼️ Смотреть работы</span>
             <span class="tab" data-tab="tab4">⭐ Избранное</span>
             <span class="tab" data-tab="tab5">💬 Чат</span>
+            <span class="tab" data-tab="tab2">🤖 Роботы — по желанию</span>
         </div>
 
         <!-- ВКЛАДКА 1 -->
         <div class="tab-content active" id="tab1">
-            <h2>Подготовка к публикации</h2>
-            <div class="upload-area">
-                <div id="loading-status" style="font-weight:600; margin-bottom:12px;">🚀 Запуск нейросети...</div>
+            <h2>Поделитесь своей фотографией</h2>
+            <div class="upload-area" id="drop-area">
+                <div id="loading-status" style="font-weight:600; margin-bottom:12px;">📸 Ваш снимок попадёт в галерею без ожидания ИИ</div>
                 <div class="progress-bar" id="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
-                <div id="upload-section" style="display:none;">
-                    <div class="flex" style="justify-content:center;">
-                        <label style="font-weight:600;">Имя автора:</label>
-                        <input type="text" id="author-name" style="padding:10px 20px; border:1px solid #cbd5e1; border-radius:60px; background:#fff; font-size:15px; width:100%; max-width:280px;" value="Александр Деревяшкин">
-                        <div class="flex" style="gap:6px;">
-                            <input type="checkbox" id="pro-checkbox">
-                            <label for="pro-checkbox" style="font-weight:bold; color:#d4af37;">👑 PRO</label>
-                        </div>
+                <div id="upload-section">
+                    <div class="quick-fields">
+                        <div class="quick-field"><label for="author-name">Ваше имя *</label><input type="text" id="author-name" maxlength="70" placeholder="Как подписать фотографию?" autocomplete="name" required></div>
+                        <div class="quick-field"><label for="category-input">Раздел</label><select id="category-input"><option value="Другое">Выбрать раздел позже</option><option>Оранжерея</option><option>Кактусярий</option><option>Макромир</option><option>Пейзажи</option><option>Портретный зал</option><option>Животный мир</option><option>Натюрморт</option><option>Архитектура</option><option>Жанр Ню</option><option>Загадка</option><option>Спорт</option></select></div>
                     </div>
-                    <label for="file-input" class="file-label" id="file-btn">📂 Выбрать холст</label>
-                    <input type="file" id="file-input" accept="image/*">
+                    <label for="file-input" class="file-label" id="file-btn">📂 Выбрать фотографию</label>
+                    <input type="file" id="file-input" accept="image/*,.heic,.heif">
+                    <img id="quick-preview" class="quick-preview" alt="Предпросмотр выбранной фотографии">
+                    <div class="upload-help" id="file-help">Можно перетащить фото сюда. Оригинал не изменяется; для публикации больших файлов может понадобиться уменьшенная копия.</div>
                     <div id="upload-status" style="margin-top:12px; font-weight:600;"></div>
                 </div>
             </div>
-            <div class="text-center">
-                <button class="btn" id="start-btn" onclick="goToStep2()" disabled>⚡ Начать анализ</button>
+            <div class="quick-actions">
+                <button class="btn" id="start-btn" onclick="goToStep3()" disabled>✅ Опубликовать фото</button>
+                <button class="btn secondary" onclick="switchTab('tab3')">🖼️ Посмотреть галерею</button>
             </div>
         </div>
 
         <!-- ВКЛАДКА 2 -->
         <div class="tab-content" id="tab2">
-            <h2 style="text-align:center;">🔬 Детальный анализ</h2>
+            <h2 style="text-align:center;">🤖 Нейросеть — необязательное развлечение</h2>
+            <p class="upload-help" style="text-align:center; margin-bottom:15px;">Сначала опубликуйте фото. Потом можно поиграть с роботами или открыть фоторедактор.</p>
+            <div class="text-center"><button class="btn" onclick="goToStep2()">🔬 Анализировать выбранное фото</button> <a class="btn" href="editor.html" style="text-decoration:none;">🎨 Фоторедактор с ИИ</a></div>
             <div class="scan-wrapper">
                 <img id="preview-img" src="">
                 <div class="laser-line" id="laser-scanner"></div>
@@ -503,15 +540,16 @@
             <div class="handshake" id="handshake"><span>🤝</span> <span style="font-weight:bold; color:#d4af37;">Роботы одобряют!</span></div>
             <div class="terminal" id="term-log">[Система]: Ожидание...</div>
             <div class="text-center mt-20">
-                <button class="btn" id="to-step-3-btn" style="display:none;" onclick="goToStep3()">🏛️ Разместить в галерею</button>
+                <button class="btn" id="to-step-3-btn" style="display:none;" onclick="switchTab('tab3')">🖼️ Посмотреть галерею</button>
             </div>
         </div>
 
         <!-- ВКЛАДКА 3 -->
         <div class="tab-content" id="tab3">
+            <div id="gallery-success" role="status" style="display:none;background:#e7f6e9;border:1px solid #a1cfb1;color:#194e36;padding:16px;border-radius:17px;margin-bottom:16px;line-height:1.7;"></div>
             <div style="background:rgba(212,175,55,0.08); border:2px solid #d4af37; border-radius:24px; padding:16px 20px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:20px;">
-                <div><h3 style="color:#d4af37;">🎉 Картина в галерее!</h3><p style="font-size:14px; color:#6b7a8f;">Баланс пополнен</p></div>
-                <div class="piastre-badge" id="total-piastres-display">0 ПИАСТРОВ</div>
+                <div><h3 style="color:#a47d35;">🖼️ Работы наших авторов</h3><p style="font-size:14px; color:#6b7a8f;">Здесь можно смотреть, обсуждать и делиться фотографиями</p></div>
+                <div class="piastre-badge" id="total-piastres-display">Загрузка...</div>
             </div>
             <div class="search-sort">
                 <input type="text" id="search-input" placeholder="🔍 Поиск по автору или комнате..." oninput="renderCatalog()">
@@ -521,20 +559,13 @@
                     <button data-sort="author" onclick="setSort('author')">🔤 По автору</button>
                 </div>
             </div>
+            <label style="display:inline-flex;align-items:center;gap:8px;margin:0 0 22px;padding:10px 14px;background:#fff4ee;border:1px solid #f0d8c7;border-radius:16px;font-size:14px;cursor:pointer;">
+                <input type="checkbox" id="show-nude" onchange="renderCatalog()" style="width:19px;height:19px;"> 🔞 Показать раздел «Художественное ню» (18+)
+            </label>
             <div id="catalog-container"></div>
             <div class="text-center mt-20" style="display:flex; flex-wrap:wrap; gap:12px; justify-content:center;">
-                <button class="btn" onclick="location.reload()">📤 Добавить ещё</button>
-                <button class="btn btn-danger" onclick="toggleAdmin()">🎮 Админ-панель</button>
-            </div>
-            <div class="admin-panel" id="adminPanel">
-                <h3>🎮 Админ-панель</h3>
-                <div class="flex">
-                    <input type="password" id="adminPass" placeholder="Пароль" style="padding:8px 16px; border-radius:60px; border:1px solid #cbd5e1; flex:1; min-width:140px; background:#fff; color:#1a2332;">
-                    <button class="btn" onclick="adminLogin()">Войти</button>
-                    <button class="btn btn-danger" onclick="banDerevyashkin()">🔨 Забанить Деревяшкина</button>
-                    <button class="btn" onclick="unbanDerevyashkin()" style="background:#2e7d32;">🔓 Разбанить</button>
-                </div>
-                <div id="adminStatus" style="margin-top:12px; font-weight:600;"></div>
+                <button class="btn" onclick="switchTab('tab1');window.scrollTo({top:0,behavior:'smooth'})">📤 Добавить ещё</button>
+                <a href="admin.html" style="color:#607267;align-self:center;font-size:13px;">Статистика владельца</a>
             </div>
         </div>
 
@@ -562,16 +593,7 @@
     <script type="importmap">
         { "imports": { "@xenova/transformers": "https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.1" } }
     </script>
-    <script>
-        // Подключаем NSFWJS (загружается один раз)
-        const NSFW_SCRIPT = document.createElement('script');
-        NSFW_SCRIPT.src = 'https://cdn.jsdelivr.net/npm/nsfwjs@3.0.0/dist/nsfwjs.min.js';
-        document.head.appendChild(NSFW_SCRIPT);
-    </script>
     <script type="module">
-        import { pipeline, env } from '@xenova/transformers';
-        env.allowLocalModels = false;
-
         // ===== КОНФИГ =====
         const FIREBASE_CONFIG = {
             apiKey: "AIzaSyB2X3o7KwYFkMfsskKoWpQYBrws8L-Mn9w",
@@ -582,7 +604,9 @@
             messagingSenderId: "329094770221",
             appId: "1:329094770221:web:b9d076f195f968668212a4"
         };
-        const IMGBB_API_KEY = "b3ef16e01059cc97d198428f28ebc07e";
+        // Уже используется нашим фоторедактором. Исходные файлы хранит Cloudinary.
+        const CLOUDINARY_CLOUD = 'i1lysqxk';
+        const CLOUDINARY_PRESET = 'kaktus';
 
         if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
         const db = firebase.database();
@@ -592,7 +616,7 @@
         let selectedFile = null;
         let uploadedDataUrl = "";
         let detectedCategory = "";
-        let currentAuthor = "Александр Деревяшкин";
+        let currentAuthor = "";
         let isPro = false;
         let isAdmin = false;
         let allPhotos = [];
@@ -602,6 +626,9 @@
         let currentUser = "";
         let nsfwModel = null;
         let sensitivityLevel = 2; // 1-3
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+        }
 
         const categoryMap = {
             'nude art fine art boudoir': 'Жанр Ню',
@@ -617,27 +644,18 @@
         };
         const candidate_labels = Object.keys(categoryMap);
 
-        // ===== NSFWJS =====
-        async function loadNSFW() {
-            try {
-                // Ждём, пока библиотека загрузится
-                if (typeof nsfwjs === 'undefined') {
-                    await new Promise(resolve => {
-                        const check = () => {
-                            if (typeof nsfwjs !== 'undefined') resolve();
-                            else setTimeout(check, 200);
-                        };
-                        check();
-                    });
-                }
-                nsfwModel = await nsfwjs.load();
-                console.log('✅ NSFWJS загружен');
-            } catch (e) {
-                console.warn('NSFWJS не загрузился:', e);
-                nsfwModel = null;
-            }
-        }
-        loadNSFW();
+        // Никакие модели не загружаются автоматически: галерея доступна сразу.
+        let lastUploadedUrl = '';
+        let previewObjectUrl = '';
+        let publishing = false;
+        const uploadStatus = document.getElementById('upload-status');
+        const authorInput = document.getElementById('author-name');
+        authorInput.value = localStorage.getItem('galleryAuthor') || '';
+        authorInput.addEventListener('input', () => {
+            currentUser = authorInput.value.trim();
+            document.getElementById('start-btn').disabled = !selectedFile || !currentUser || publishing;
+        });
+        currentUser = authorInput.value.trim();
 
         // ===== ПОЛЗУНОК =====
         const slider = document.getElementById('sensitivitySlider');
@@ -658,38 +676,48 @@
 
         // ===== ИНИЦИАЛИЗАЦИЯ ТРАНСФОРМЕРА =====
         async function initModel() {
-            const statusEl = document.getElementById('loading-status');
-            const fill = document.getElementById('progress-fill');
-            const bar = document.getElementById('progress-bar');
-            bar.style.display = 'block';
+            if (classifier) return true;
+            const log = document.getElementById('term-log');
+            log.textContent = '⏳ Загружаем нейросеть по вашему желанию...';
             try {
+                const { pipeline, env } = await import('@xenova/transformers');
+                env.allowLocalModels = false;
                 classifier = await pipeline('zero-shot-image-classification', 'Xenova/clip-vit-base-patch32', {
-                    progress_callback: (x) => {
-                        if (x.status === 'progress') {
-                            fill.style.width = Math.round((x.loaded/x.total)*100) + '%';
-                        }
-                    }
+                    progress_callback: x => { if (x.status === 'progress' && x.total) log.textContent = `Загрузка ИИ: ${Math.round(x.loaded/x.total*100)}%`; }
                 });
-                statusEl.textContent = '✅ Нейросеть готова! Выберите холст.';
-                statusEl.style.color = '#2e7d32';
-                bar.style.display = 'none';
-                document.getElementById('upload-section').style.display = 'block';
+                return true;
             } catch (e) {
-                statusEl.textContent = '❌ Ошибка загрузки нейросети. Проверьте интернет.';
-                statusEl.style.color = '#d32f2f';
+                log.textContent = 'Нейросеть сейчас недоступна. Фотографии всё равно можно публиковать.';
+                return false;
             }
         }
-        initModel();
 
         // ===== ЗАГРУЗКА ФАЙЛА =====
-        document.getElementById('file-input').addEventListener('change', function(e) {
-            if (e.target.files.length > 0) {
-                selectedFile = e.target.files[0];
-                document.getElementById('file-btn').textContent = `✅ ${selectedFile.name}`;
-                document.getElementById('start-btn').disabled = false;
-                document.getElementById('upload-status').textContent = '';
+        function selectPhoto(file) {
+            if (!file) return;
+            if (!file.type.startsWith('image/') && !/\.(heic|heif)$/i.test(file.name)) {
+                uploadStatus.textContent = 'Нужна фотография, а не другой файл.';
+                return;
             }
-        });
+            selectedFile = file;
+            lastUploadedUrl = '';
+            uploadedDataUrl = '';
+            uploadStatus.textContent = '';
+            document.getElementById('file-btn').textContent = '✅ ' + file.name;
+            document.getElementById('file-help').textContent = `Размер: ${(file.size/1048576).toFixed(1)} МБ. ${file.size > 9.5*1048576 ? 'Сделаем облегчённую копию для загрузки; ваш оригинал останется без изменений.' : 'Опубликуем без изменения качества.'}`;
+            if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
+            previewObjectUrl = URL.createObjectURL(file);
+            const preview = document.getElementById('quick-preview');
+            preview.src = previewObjectUrl;
+            preview.classList.add('show');
+            preview.onerror = () => preview.classList.remove('show');
+            document.getElementById('start-btn').disabled = !authorInput.value.trim();
+        }
+        document.getElementById('file-input').addEventListener('change', e => selectPhoto(e.target.files[0]));
+        const dropArea = document.getElementById('drop-area');
+        ['dragenter','dragover'].forEach(name => dropArea.addEventListener(name, e => { e.preventDefault(); dropArea.classList.add('dragging'); }));
+        ['dragleave','drop'].forEach(name => dropArea.addEventListener(name, e => { e.preventDefault(); dropArea.classList.remove('dragging'); }));
+        dropArea.addEventListener('drop', e => selectPhoto(e.dataTransfer.files[0]));
 
         // ===== ВКЛАДКИ =====
         document.querySelectorAll('.tab').forEach(tab => {
@@ -726,43 +754,12 @@
 
         // ===== ШАГ 2 =====
         window.goToStep2 = async function() {
-            if (!selectedFile) return;
-            currentAuthor = document.getElementById('author-name').value.trim() || "Александр Деревяшкин";
-            isPro = document.getElementById('pro-checkbox').checked;
-            currentUser = currentAuthor;
-            updateUserStatus();
-
-            // Проверка NSFW
-            const statusEl = document.getElementById('upload-status');
-            if (nsfwModel) {
-                try {
-                    const predictions = await nsfwModel.classify(selectedFile);
-                    const porn = predictions.find(p => p.className === 'Porn')?.probability || 0;
-                    const hentai = predictions.find(p => p.className === 'Hentai')?.probability || 0;
-                    const sexy = predictions.find(p => p.className === 'Sexy')?.probability || 0;
-                    const threshold = thresholds[sensitivityLevel-1];
-                    if (porn > threshold || hentai > threshold || sexy > threshold) {
-                        // Блокируем
-                        statusEl.textContent = '⛔ Фото заблокировано модерацией.';
-                        statusEl.style.color = '#d32f2f';
-                        // Показываем анимацию ракеты
-                        showRocketAnimation(selectedFile);
-                        // Очищаем выбор
-                        document.getElementById('file-input').value = '';
-                        document.getElementById('file-btn').textContent = '📂 Выбрать холст';
-                        document.getElementById('start-btn').disabled = true;
-                        return;
-                    }
-                } catch (e) {
-                    console.warn('NSFWJS error:', e);
-                }
-            }
-
-            statusEl.textContent = '✅ Фото прошло модерацию.';
-            statusEl.style.color = '#2e7d32';
-
             switchTab('tab2');
-            analyzeWithTransformers(selectedFile);
+            if (!selectedFile) {
+                document.getElementById('term-log').textContent = 'Сначала выберите фотографию во вкладке «Добавить фото».';
+                return;
+            }
+            if (await initModel()) analyzeWithTransformers(selectedFile);
         };
 
         // ===== АНИМАЦИЯ РАКЕТЫ (покадровая) =====
@@ -925,54 +922,106 @@
             document.querySelector(`[data-tab="${tabId}"]`).classList.add('active');
             document.getElementById(tabId).classList.add('active');
         }
+        window.switchTab = switchTab;
 
-        // ===== ШАГ 3 =====
+        // ===== ПУБЛИКАЦИЯ: ФОТО → ХРАНИЛИЩЕ → БАЗА =====
+        // Cloudinary Free принимает изображения до 10 МБ. Оригинал остаётся на устройстве.
+        async function prepareForUpload(file) {
+            const maxSize = 9.5 * 1048576;
+            if (file.size <= maxSize) return file;
+            uploadStatus.textContent = '⏳ Подготавливаем уменьшенную копию большого снимка...';
+            const bitmap = await createImageBitmap(file);
+            const maxEdge = 4200;
+            const scale = Math.min(1, maxEdge / Math.max(bitmap.width, bitmap.height));
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.round(bitmap.width * scale);
+            canvas.height = Math.round(bitmap.height * scale);
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#fff'; ctx.fillRect(0,0,canvas.width,canvas.height);
+            ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+            bitmap.close?.();
+            for (const quality of [.94,.88,.80,.70,.60]) {
+                const blob = await new Promise(resolve => canvas.toBlob(resolve,'image/jpeg',quality));
+                if (blob && blob.size <= maxSize) return new File([blob],file.name.replace(/\.[^.]+$/,'')+'-web.jpg',{type:'image/jpeg'});
+            }
+            throw new Error('Файл слишком большой. Попробуйте другое изображение или уменьшите его в редакторе.');
+        }
+
+        function uploadToCloudinary(file, onProgress) {
+            return new Promise((resolve, reject) => {
+                const data = new FormData();
+                data.append('file', file);
+                data.append('upload_preset', CLOUDINARY_PRESET);
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`);
+                xhr.timeout = 120000;
+                xhr.upload.onprogress = e => { if (e.lengthComputable) onProgress(Math.round(e.loaded / e.total * 100)); };
+                xhr.onerror = () => reject(new Error('Связь с хранилищем прервалась. Проверьте интернет и попробуйте ещё раз.'));
+                xhr.ontimeout = () => reject(new Error('Истекло время ожидания. Попробуйте ещё раз.'));
+                xhr.onload = () => {
+                    let response;
+                    try { response = JSON.parse(xhr.responseText); } catch { response = {}; }
+                    if (xhr.status >= 200 && xhr.status < 300 && /^https:\/\//.test(response.secure_url||'')) resolve(response.secure_url);
+                    else reject(new Error(response.error?.message || 'Хранилище не приняло снимок. Попробуйте ещё раз.'));
+                };
+                xhr.send(data);
+            });
+        }
+
         window.goToStep3 = async function() {
-            const btn = document.getElementById('to-step-3-btn');
+            if (publishing || !selectedFile) return;
+            currentAuthor = authorInput.value.trim();
+            if (!currentAuthor) { authorInput.focus(); uploadStatus.textContent = 'Укажите имя автора.'; return; }
+            publishing = true;
+            const btn = document.getElementById('start-btn');
             btn.disabled = true;
-            btn.textContent = '⏳ Загрузка...';
-
-            let finalUrl = uploadedDataUrl;
-            if (selectedFile) {
-                try {
-                    const fd = new FormData();
-                    fd.append('image', selectedFile);
-                    const res = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, { method: 'POST', body: fd });
-                    const data = await res.json();
-                    if (data.success && data.data.url) finalUrl = data.data.url;
-                } catch (e) { console.warn('ImgBB error, using base64'); }
-            }
-
-            const photo = {
-                id: Date.now(),
-                img: finalUrl,
-                rubric: detectedCategory,
-                author: currentAuthor,
-                isPro: isPro,
-                likes: 0,
-                dislikes: 0,
-                superLikes: 0,
-                date: new Date().toLocaleDateString('ru-RU'),
-                comments: []
-            };
-
+            btn.textContent = '⏳ Публикуем...';
+            uploadStatus.style.color = '#25674f';
             try {
+                if (!lastUploadedUrl) {
+                    const file = await prepareForUpload(selectedFile);
+                    uploadStatus.textContent = '⏳ Отправляем фотографию: 0%';
+                    lastUploadedUrl = await uploadToCloudinary(file, percent => { uploadStatus.textContent = `⏳ Отправляем фотографию: ${percent}%`; });
+                }
+                uploadStatus.textContent = '⏳ Сохраняем фотографию в галерее...';
+                const photo = {
+                    id: Date.now(),
+                    img: lastUploadedUrl,
+                    rubric: document.getElementById('category-input').value,
+                    author: currentAuthor,
+                    isPro: false,
+                    likes: 0, dislikes: 0, superLikes: 0,
+                    date: new Date().toLocaleDateString('ru-RU'),
+                    comments: []
+                };
                 await db.ref('photos/' + photo.id).set(photo);
-                // Показываем уведомление о пополнении баланса
-                updatePiastres();
+                localStorage.setItem('galleryAuthor', currentAuthor);
+                uploadStatus.textContent = '✅ Опубликовано!';
+                const editUrl = 'editor.html?image=' + encodeURIComponent(lastUploadedUrl);
+                const success = document.getElementById('gallery-success');
+                success.style.display = 'block';
+                success.innerHTML = `✅ <b>Готово!</b> Фото опубликовано от имени «${escapeHtml(currentAuthor)}». <a href="${editUrl}" style="color:#185c45;font-weight:bold;">🎨 Теперь можно поиграть с ИИ или отредактировать</a>`;
+                switchTab('tab3');
+                renderCatalog();
+                window.scrollTo({top:0,behavior:'smooth'});
+                // При следующем выборе файла загрузка начнётся с чистого листа.
+                selectedFile = null;
+                lastUploadedUrl = '';
+                document.getElementById('file-input').value = '';
+                document.getElementById('file-btn').textContent = '📂 Выбрать фотографию';
+                document.getElementById('quick-preview').classList.remove('show');
             } catch (e) {
-                alert('Ошибка сохранения. Попробуйте ещё раз.');
+                uploadStatus.textContent = `❌ Не получилось опубликовать: ${e.message}`;
+                uploadStatus.style.color = '#b42318';
+            } finally {
+                publishing = false;
+                btn.textContent = '✅ Опубликовать фото';
+                btn.disabled = !selectedFile || !authorInput.value.trim();
             }
-
-            btn.disabled = false;
-            btn.textContent = '🏛️ Разместить в галерею';
-            switchTab('tab3');
-            renderCatalog();
         };
 
         function updatePiastres() {
-            const total = allPhotos.reduce((sum, p) => sum + (p.isPro ? 20 : 10), 0);
-            document.getElementById('total-piastres-display').textContent = total + ' ПИАСТРОВ';
+            document.getElementById('total-piastres-display').textContent = allPhotos.length + ' работ';
         }
 
         // ===== FIREBASE СИНХРОНИЗАЦИЯ =====
@@ -981,6 +1030,10 @@
             allPhotos = data ? Object.values(data) : [];
             if (document.getElementById('tab3').classList.contains('active')) renderCatalog();
             updatePiastres();
+        }, error => {
+            document.getElementById('total-piastres-display').textContent = 'Ошибка связи';
+            document.getElementById('catalog-container').textContent = 'Не удалось получить фотографии. Проверьте соединение и обновите страницу.';
+            console.error('Firebase photos:', error.code);
         });
 
         // ===== ЧАТ =====
@@ -989,7 +1042,7 @@
             const msgs = data ? Object.values(data) : [];
             const box = document.getElementById('chat-box');
             box.innerHTML = msgs.map(m =>
-                `<div class="chat-msg"><span class="c-author">${m.author}</span><span class="c-text">${m.text}</span><span class="c-time">${m.time || ''}</span></div>`
+                `<div class="chat-msg"><span class="c-author">${escapeHtml(m.author)}</span><span class="c-text">${escapeHtml(m.text)}</span><span class="c-time">${escapeHtml(m.time)}</span></div>`
             ).join('');
             box.scrollTop = box.scrollHeight;
         });
@@ -1006,26 +1059,25 @@
                 text: text,
                 time: new Date().toLocaleTimeString('ru-RU', {hour:'2-digit',minute:'2-digit'})
             };
-            db.ref('chat/' + msg.id).set(msg);
-            textInput.value = '';
+            db.ref('chat/' + msg.id).set(msg).then(() => { textInput.value = ''; }).catch(() => alert('Не получилось отправить сообщение. Попробуйте ещё раз.'));
         };
 
         // ===== ГАЛЕРЕЯ =====
         window.renderCatalog = function() {
             const container = document.getElementById('catalog-container');
             const search = document.getElementById('search-input').value.toLowerCase();
-            let filtered = allPhotos;
+            let filtered = allPhotos.filter(p => p.rubric !== 'Жанр Ню' || document.getElementById('show-nude').checked);
 
             if (search) {
                 filtered = filtered.filter(p =>
-                    p.author.toLowerCase().includes(search) ||
+                    (p.author || '').toLowerCase().includes(search) ||
                     (p.rubric || '').toLowerCase().includes(search)
                 );
             }
 
             if (sortMode === 'date') filtered.sort((a,b) => b.id - a.id);
             else if (sortMode === 'likes') filtered.sort((a,b) => (b.likes||0) - (a.likes||0));
-            else if (sortMode === 'author') filtered.sort((a,b) => a.author.localeCompare(b.author));
+            else if (sortMode === 'author') filtered.sort((a,b) => (a.author||'').localeCompare(b.author||''));
 
             if (!filtered.length) {
                 container.innerHTML = `<p style="text-align:center; color:#6b7a8f; padding:30px 0;">Залы пусты. Повесьте первую картину.</p>`;
@@ -1041,17 +1093,21 @@
 
             let html = '';
             for (const [roomName, items] of Object.entries(rooms)) {
-                html += `<div class="room-section"><div class="room-title">🚪 ${roomName}</div><div class="gallery-grid">`;
+                html += `<div class="room-section"><div class="room-title">🚪 ${escapeHtml(roomName)}</div><div class="gallery-grid">`;
                 items.forEach(item => {
                     const isBanned = item.author === 'Александр Деревяшкин' && window._banned;
                     const comments = item.comments || [];
                     const isFav = favorites.includes(item.id);
+                    const imageUrl = /^https:\/\//.test(item.img || '') ? item.img : '';
+                    const safeImage = escapeHtml(imageUrl);
+                    const imageArg = encodeURIComponent(imageUrl);
                     html += `
                         <div class="gallery-item" id="photo-${item.id}">
-                            <img src="${item.img}" onclick="openLightbox('${item.img}')">
+                            <img src="${safeImage}" loading="lazy" alt="Работа автора ${escapeHtml(item.author)}" onclick="openLightbox(decodeURIComponent('${imageArg}'))" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+                            <div class="broken-photo">Этот снимок пока недоступен в старом хранилище. Автор может загрузить его повторно.</div>
                             <div class="info">
-                                <div><span class="author" style="font-weight:600;">${item.author}</span>${item.isPro ? '<span class="pro-badge">PRO</span>' : ''}${isBanned ? '<span class="banned-badge">БАН</span>' : ''}</div>
-                                <div class="date" style="font-size:12px; color:#6b7a8f; margin-top:4px;">${item.date || ''}</div>
+                                <div><span class="author" style="font-weight:600;">${escapeHtml(item.author)}</span>${item.isPro ? '<span class="pro-badge">PRO</span>' : ''}${isBanned ? '<span class="banned-badge">БАН</span>' : ''}</div>
+                                <div class="date" style="font-size:12px; color:#6b7a8f; margin-top:4px;">${escapeHtml(item.date)}</div>
                                 <div class="action-bar">
                                     <div style="display:flex; gap:6px; flex-wrap:wrap;">
                                         <button class="vote-btn like" onclick="vote(${item.id},'like')">👍 ${item.likes||0}</button>
@@ -1060,8 +1116,9 @@
                                     </div>
                                     <div style="display:flex; gap:4px;">
                                         <button class="icon-btn" onclick="toggleFav(${item.id})">${isFav ? '⭐' : '☆'}</button>
-                                        <button class="icon-btn" onclick="sharePhoto('${item.img}')">📤</button>
-                                        <button class="icon-btn" onclick="downloadPhoto('${item.img}')">📥</button>
+                                        <button class="icon-btn" onclick="sharePhoto(decodeURIComponent('${imageArg}'))" title="Поделиться">📤</button>
+                                        <button class="icon-btn" onclick="downloadPhoto(decodeURIComponent('${imageArg}'))" title="Скачать">📥</button>
+                                        <button class="icon-btn" onclick="location.href='editor.html?image='+encodeURIComponent(decodeURIComponent('${imageArg}'))" title="Открыть в фоторедакторе">🎨</button>
                                         ${isAdmin ? `<button class="icon-btn" style="color:#d32f2f;" onclick="deletePhoto(${item.id})">🗑️</button>` : ''}
                                     </div>
                                 </div>
@@ -1069,9 +1126,9 @@
                                     <div id="comments-${item.id}">
                                         ${comments.map(c => `
                                             <div class="comment" data-cid="${c.id}">
-                                                <span class="c-author">${c.author}</span>
-                                                <span class="c-text" contenteditable="false">${c.text}</span>
-                                                <span class="c-time">${c.time || ''}</span>
+                                                <span class="c-author">${escapeHtml(c.author)}</span>
+                                                <span class="c-text" contenteditable="false">${escapeHtml(c.text)}</span>
+                                                <span class="c-time">${escapeHtml(c.time)}</span>
                                                 <span class="c-actions">
                                                     ${(c.author === currentUser || isAdmin) ? `<button onclick="editComment(${item.id},'${c.id}')">✎</button>` : ''}
                                                     ${(c.author === currentUser || isAdmin) ? `<button onclick="deleteComment(${item.id},'${c.id}')">✕</button>` : ''}
@@ -1083,7 +1140,7 @@
                                                 </div>
                                                 <div class="child-comments" id="replies-${item.id}-${c.id}">
                                                     ${c.replies ? c.replies.map(r => `
-                                                        <div class="comment"><span class="c-author">${r.author}</span><span class="c-text">${r.text}</span><span class="c-time">${r.time || ''}</span></div>
+                                                        <div class="comment"><span class="c-author">${escapeHtml(r.author)}</span><span class="c-text">${escapeHtml(r.text)}</span><span class="c-time">${escapeHtml(r.time)}</span></div>
                                                     `).join('') : ''}
                                                 </div>
                                             </div>
@@ -1298,16 +1355,8 @@
             document.getElementById('adminPanel').classList.toggle('show');
         };
 
-        window.adminLogin = function() {
-            const pass = document.getElementById('adminPass').value;
-            if (pass === 'admin123') {
-                isAdmin = true;
-                updateUserStatus();
-                document.getElementById('adminStatus').textContent = '✅ Вы вошли как администратор!';
-            } else {
-                document.getElementById('adminStatus').textContent = '❌ Неверный пароль';
-            }
-        };
+        // Старый пароль был виден каждому в исходном коде страницы. Вход владельца — в admin.html через Google.
+        window.adminLogin = function() { window.location.href = 'admin.html'; };
 
         window._banned = false;
         window.banDerevyashkin = function() {
@@ -1335,22 +1384,13 @@
             renderCatalog();
         };
 
-        // ===== ЗАЩИТА ОТ КОПИРОВАНИЯ =====
-        document.addEventListener('contextmenu', function(e) {
-            if (e.target.tagName === 'IMG') {
-                e.preventDefault();
-                alert('Копирование изображений запрещено!');
-            }
-        });
-        document.addEventListener('dragstart', function(e) {
-            if (e.target.tagName === 'IMG') e.preventDefault();
-        });
+        // На iPhone разрешаем привычное долгое нажатие «Сохранить изображение».
 
         // ===== ИНИЦИАЛИЗАЦИЯ =====
         updateUserStatus();
         if (document.getElementById('tab3').classList.contains('active')) renderCatalog();
 
-        console.log('🚀 Галерея готова! (с NSFW-фильтром и анимацией ракеты)');
+        console.log('📷 Галерея готова: быстрая загрузка, ИИ по желанию.');
     </script>
 <script defer src="https://derev-studio.github.io/photo-gallery/counter.js" data-site="photo-gallery"></script>
 </body>
