@@ -921,6 +921,8 @@
             document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
             document.querySelector(`[data-tab="${tabId}"]`).classList.add('active');
             document.getElementById(tabId).classList.add('active');
+            if (tabId === 'tab3' && typeof window.renderCatalog === 'function') window.renderCatalog();
+            if (tabId === 'tab4' && typeof window.renderFavorites === 'function') window.renderFavorites();
         }
         window.switchTab = switchTab;
 
@@ -997,6 +999,7 @@
                 await db.ref('photos/' + photo.id).set(photo);
                 localStorage.setItem('galleryAuthor', currentAuthor);
                 uploadStatus.textContent = '✅ Опубликовано!';
+                if (photo.rubric === 'Жанр Ню') document.getElementById('show-nude').checked = true;
                 const editUrl = 'editor.html?image=' + encodeURIComponent(lastUploadedUrl);
                 const success = document.getElementById('gallery-success');
                 success.style.display = 'block';
