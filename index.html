@@ -547,6 +547,8 @@
             <span class="tab" data-tab="tab4">⭐ Избранное</span>
             <span class="tab" data-tab="tab5">💬 Чат</span>
             <span class="tab" data-tab="tab2">🤖 ИИ</span>
+            <a class="tab" href="editor.html" style="text-decoration:none;">🎨 Фоторедактор</a>
+            <a class="tab" href="editor-ai.html" style="text-decoration:none;">✨ ИИ‑редактор</a>
         </div>
 
         <!-- ВКЛАДКА 1 -->
@@ -574,6 +576,7 @@
                 <button class="btn" id="robot-pick-btn" type="button">📷 Добавить картинку роботам</button>
                 <input type="file" id="robot-file-input" accept="image/*,.heic,.heif" aria-label="Выбрать картинку для роботов" style="display:none;">
                 <button class="btn" id="robot-genre-btn" onclick="goToStep2()" disabled>🔬 Узнать жанр</button>
+                <button class="btn" id="robot-real-ai-btn" onclick="analyzeRobotWithQwen()" disabled>🧠 Разговор с настоящим ИИ</button>
                 <a class="btn" href="editor-ai.html" style="text-decoration:none;">🎨 ИИ‑редактор</a>
             </div>
             <div class="scan-wrapper">
@@ -791,6 +794,7 @@
             document.getElementById('start-btn').disabled = false;
             document.getElementById('start-btn').textContent = 'Опубликовать';
             document.getElementById('robot-genre-btn').disabled = false;
+            document.getElementById('robot-real-ai-btn').disabled = false;
             document.getElementById('robot-publish-btn').disabled = false;
             document.getElementById('robot-voice-btn').disabled = true;
         }
@@ -801,7 +805,7 @@
         dropArea.addEventListener('drop', e => selectPhoto(e.dataTransfer.files[0]));
 
         // ===== ВКЛАДКИ =====
-        document.querySelectorAll('.tab').forEach(tab => {
+        document.querySelectorAll('.tab[data-tab]').forEach(tab => {
             tab.addEventListener('click', function() {
                 document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
                 document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
@@ -868,6 +872,47 @@
             }
             if (lastRobotFile !== selectedFile) await reviewRobotImage(selectedFile);
             if (await initModel()) analyzeWithTransformers(selectedFile);
+        };
+
+        // Настоящий ИИ запускается только по нажатию: загрузка фото от него не зависит.
+        window.analyzeRobotWithQwen = async function() {
+            const file = selectedFile;
+            if (!file) return;
+            const button = document.getElementById('robot-real-ai-btn');
+            const log = document.getElementById('term-log');
+            button.disabled = true;
+            button.textContent = '⏳ Роботы размышляют…';
+            try {
+                const user = await ensureGoogleUser();
+                if (!user) { log.textContent = 'Для разговора с ИИ войдите через Google.'; return; }
+                log.textContent = '🧠 Роботы рассматривают сюжет и спорят о фотографии…';
+                const bitmap = await createImageBitmap(file);
+                let image;
+                try {
+                    const ratio = Math.min(1, 1024 / Math.max(bitmap.width, bitmap.height));
+                    const canvas = document.createElement('canvas');
+                    canvas.width = Math.max(1, Math.round(bitmap.width * ratio));
+                    canvas.height = Math.max(1, Math.round(bitmap.height * ratio));
+                    canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+                    image = canvas.toDataURL('image/jpeg', 0.76);
+                } finally { bitmap.close?.(); }
+                const response = await fetch(PHOTO_UPLOAD_WORKER, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + await user.getIdToken() },
+                    body: JSON.stringify({ action: 'robotReview', image })
+                });
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.error || 'Не удалось получить ответ');
+                if (!result.pedant || !result.cynic) throw new Error('Роботы пока не ответили');
+                if (selectedFile !== file) return;
+                showRobotReview(result.pedant, result.cynic);
+                log.textContent = '✅ Педант и Циник самостоятельно обсудили фотографию. Можно послушать их ещё раз.';
+            } catch (error) {
+                log.textContent = '❌ ИИ: ' + (error.message || 'Временно недоступен') + '. Предыдущая оценка сохранена.';
+            } finally {
+                button.disabled = !selectedFile;
+                button.textContent = '🧠 Разговор с настоящим ИИ';
+            }
         };
 
         async function inspectRobotQuality(file) {
@@ -1303,6 +1348,7 @@
                 lastRobotFile = null;
                 document.getElementById('robot-publish-btn').disabled = true;
                 document.getElementById('robot-genre-btn').disabled = true;
+                document.getElementById('robot-real-ai-btn').disabled = true;
                 document.getElementById('file-input').value = '';
                 document.getElementById('file-btn').textContent = '📷 Выбрать фото';
                 document.getElementById('file-help').textContent = '';
