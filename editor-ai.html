@@ -35,9 +35,10 @@
 </aside><main class="card stage"><section class="pane"><h3>Результат</h3><div id="genBox" class="imgbox"><div class="empty">Здесь появится созданная картинка</div></div></section></main></div></div>
 
 <div id="galleryView" class="view"><div class="card stage">
-<div class="toolbar"><div><h2 style="margin:0">🔒 Мои работы</h2><div class="sub">Сюда можно добавить свои фотографии с компьютера или телефона, а потом при желании отправить их в редактор.</div></div><div class="toolbar-actions"><button id="addMine" class="primary">➕ Добавить свои фото</button><button id="migrateOld">Перенести старые</button></div></div>
+<div class="toolbar"><div><h2 style="margin:0">👤 Мои фото</h2><div class="sub">Загрузи один раз: только себе или одновременно себе и в общую галерею.</div></div><div class="toolbar-actions"><button id="addMine" class="primary">🔒 Только себе</button><button id="addPublicMine" class="publish">🌍 Добавить в обе галереи</button><button id="migrateOld">Перенести старые</button></div></div>
 <div id="importBox" class="importbox">📷 <b>Нажми сюда и выбери фотографии</b><div class="small">Можно выбрать сразу несколько файлов. Они останутся в «Моих работах» и не попадут в общую галерею сами.</div></div>
 <input id="mineFiles" type="file" accept="image/*" multiple hidden>
+<input id="publicMineFiles" type="file" accept="image/*" multiple hidden>
 <div id="mineStatus" class="status"></div>
 <div id="gallery" class="gallery"></div>
 </div></div>
@@ -94,32 +95,55 @@ $('editRun').onclick=async()=>{if(!currentUser)return st($('editStatus'),'Сна
 $('genRun').onclick=async()=>{if(!currentUser)return st($('genStatus'),'Сначала войдите через Google.','err');if(!$('genPrompt').value.trim())return st($('genStatus'),'Напиши, что создать.','err');try{genResult=await callAI('generate',$('genModel').value,$('genPrompt').value.trim(),'', $('genStatus'));$('genBox').innerHTML=`<img src="${genResult}">`;$('genSave').classList.add('show');await savePrivate(genResult,'Генерация',$('genModel').value,$('genPrompt').value.trim());st($('genStatus'),'Готово. Сохранено в «Моих работах».','ok')}catch(e){st($('genStatus'),'Ошибка: '+e.message,'err')}};
 function download(u,name){const a=document.createElement('a');a.href=u;a.download=name;a.target='_blank';a.click()}$('editSave').onclick=()=>download(editResult,'ai-edit.png');$('genSave').onclick=()=>download(genResult,'ai-generate.png');
 async function uploadPublic(url){return /^https:\/\//.test(url)?url:await makePrivateCopy(url)}
-async function publishWork(id){if(!currentUser)return alert('Сначала войдите через Google');const x=privateWorks.find(w=>String(w.id)===String(id));if(!x)return;if(x.published)return alert('Эта работа уже опубликована.');if(!confirm('Опубликовать эту работу в общей галерее? Её смогут видеть другие люди.'))return;try{const publicUrl=await uploadPublic(x.url);const publicId=Date.now();await db.ref('photos/'+publicId).set({id:publicId,img:publicUrl,rubric:x.mode==='Генерация'?'AI‑генерация':x.mode==='Моё фото'?'Фотографии':'AI‑редактирование',author:x.ownerName||currentUser.displayName||'Пользователь',isPro:x.model==='qwen-image-3.0-pro',likes:0,dislikes:0,superLikes:0,date:new Date().toLocaleDateString('ru-RU'),comments:[]});await personalRef().child(String(id)).update({published:true,publicId});alert('Опубликовано в общей галерее.')}catch(e){alert('Не удалось опубликовать: '+e.message)}}window.publishWork=publishWork;
+async function publishWork(id){
+  if(!currentUser)return alert('Сначала войдите через Google');
+  const x=privateWorks.find(w=>String(w.id)===String(id));
+  if(!x)return;
+  if(x.published)return alert('Эта работа уже опубликована.');
+  if(!confirm('Опубликовать эту работу в общей галерее? Её смогут видеть другие люди.'))return;
+  try{
+    const publicUrl=await uploadPublic(x.url),publicId=Date.now();
+    const author=currentUser.displayName||currentUser.email?.split('@')[0]||'Участник';
+    const photo={id:publicId,img:publicUrl,rubric:x.mode==='Генерация'?'AI‑генерация':x.mode==='Моё фото'?'Фотографии':'AI‑редактирование',author,ownerUid:currentUser.uid,isPro:x.model==='qwen-image-3.0-pro',likes:0,dislikes:0,superLikes:0,date:new Date().toLocaleDateString('ru-RU'),comments:[]};
+    await db.ref().update({['photos/'+publicId]:photo,['users/'+currentUser.uid+'/works/'+id+'/published']:true,['users/'+currentUser.uid+'/works/'+id+'/publicId']:publicId});
+    alert('Опубликовано в общей галерее и сохранено в вашем аккаунте.');
+  }catch(e){alert('Не удалось опубликовать: '+e.message)}
+}window.publishWork=publishWork;
 function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function drawGallery(){if(!currentUser){$('gallery').innerHTML='<div class="empty">Войдите через Google, чтобы открыть «Мои работы».</div>';return}$('gallery').innerHTML=privateWorks.length?privateWorks.map(x=>`<div class="gitem"><img src="${x.url}"><div class="gmeta"><b>${esc(x.mode)}</b>${x.model?' · '+esc(x.model):''}<br>${esc(x.time)}${x.prompt?'<br>'+esc(x.prompt).slice(0,120):''}<br><b>${x.published?'🌍 Опубликовано':'🔒 Личное'}</b></div><div class="row"><button onclick="openWork('${x.id}')">Открыть</button><button class="primary" onclick="editWork('${x.id}')">✏️ В редактор</button>${x.published?'':`<button class="publish" onclick="publishWork('${x.id}')">Опубликовать</button>`}<button onclick="removeWork('${x.id}')">Удалить</button></div></div>`).join(''):'<div class="empty">Пока пусто. Нажмите «Добавить свои фото» сверху.</div>'}
 window.openWork=id=>{const x=privateWorks.find(w=>String(w.id)===String(id));if(x)window.open(x.url,'_blank')};
 window.editWork=id=>{const x=privateWorks.find(w=>String(w.id)===String(id));if(!x)return;sourceData=x.url;$('beforeBox').innerHTML=`<img src="${x.url}">`;$('afterBox').innerHTML='<div class="empty">Готов к обработке</div>';openView('editView');st($('editStatus'),'Фото из «Моих работ» перенесено в редактор.','ok')};
 window.removeWork=async id=>{const x=privateWorks.find(w=>String(w.id)===String(id));if(!x)return;if(x.published&&!confirm('Работа уже опубликована. Удалить только личную копию?'))return;else if(!x.published&&!confirm('Удалить работу из «Моих работ»?'))return;await personalRef().child(String(id)).remove()};
-async function importMine(files){
+async function importMine(files,publish=false){
   if(!currentUser)return alert('Сначала войдите через Google');
   const list=[...files].filter(f=>f.type.startsWith('image/'));
   if(!list.length)return;
+  if(publish&&!confirm('Публикуем эти фотографии в общей галерее? Их увидят все посетители.'))return;
   st($('mineStatus'),'Загрузка…');
   let n=0,failed=0;
   for(const f of list){
     try{
       const url=await uploadCloudinary(f);
       const id=Date.now()+n;
-      await personalRef().child(String(id)).set({id,url,mode:'Моё фото',model:'',prompt:f.name,time:new Date().toLocaleString('ru-RU'),date:new Date().toLocaleDateString('ru-RU'),published:false,ownerName:currentUser.displayName||currentUser.email||'Пользователь'});
+      const ownerName=currentUser.displayName||currentUser.email?.split('@')[0]||'Участник';
+      const date=new Date().toLocaleDateString('ru-RU');
+      const work={id,url,mode:'Моё фото',model:'',prompt:f.name,time:new Date().toLocaleString('ru-RU'),date,published:publish,publicId:publish?id:null,ownerName};
+      if(publish){
+        const photo={id,img:url,rubric:'Фотографии',author:ownerName,ownerUid:currentUser.uid,storage:'cloudinary',filename:f.name,bytes:f.size,isPro:false,likes:0,dislikes:0,superLikes:0,date,comments:[]};
+        await db.ref().update({['photos/'+id]:photo,['users/'+currentUser.uid+'/works/'+id]:work});
+      }else await personalRef().child(String(id)).set(work);
       n++;
-      st($('mineStatus'),`Добавлено: ${n}/${list.length}`,'ok');
+      st($('mineStatus'),`Добавлено: ${n}/${list.length}${publish?' — в обе галереи':''}`,'ok');
     }catch(e){failed++;console.warn(e)}
   }
-  st($('mineStatus'),failed?`Добавлено: ${n}. Ошибок: ${failed}`:`Добавлено: ${n}`,failed?'err':'ok');
+  st($('mineStatus'),failed?`Добавлено: ${n}. Ошибок: ${failed}`:`Добавлено: ${n}${publish?' — в обе галереи':''}`,failed?'err':'ok');
   $('mineFiles').value='';
+  $('publicMineFiles').value='';
 }
 $('addMine').onclick=()=>$('mineFiles').click();$('importBox').onclick=()=>$('mineFiles').click();$('mineFiles').onchange=e=>importMine(e.target.files);
+$('addPublicMine').onclick=()=>$('publicMineFiles').click();$('publicMineFiles').onchange=e=>importMine(e.target.files,true);
 ['dragenter','dragover'].forEach(v=>$('importBox').addEventListener(v,e=>{e.preventDefault();$('importBox').style.borderColor='#2563eb'}));['dragleave','drop'].forEach(v=>$('importBox').addEventListener(v,e=>{e.preventDefault();$('importBox').style.borderColor=''}));$('importBox').addEventListener('drop',e=>importMine(e.dataTransfer.files));
 $('migrateOld').onclick=async()=>{if(!currentUser)return alert('Сначала войдите через Google');const old=JSON.parse(localStorage.getItem(oldGalleryKey())||'[]');if(!old.length)return alert('Старых работ в этом браузере не найдено.');let n=0;for(const x of old){try{const id=x.id||Date.now()+n;const exists=await personalRef().child(String(id)).once('value');if(exists.exists())continue;const url=await makePrivateCopy(x.url);await personalRef().child(String(id)).set({id,url,mode:x.mode||'Работа',model:x.model||'',prompt:x.prompt||'',time:x.time||'',date:new Date().toLocaleDateString('ru-RU'),published:!!x.published,publicId:x.publicId||null,ownerName:currentUser.displayName||currentUser.email||'Пользователь'});n++}catch(e){console.warn(e)}}alert('Перенесено: '+n)};
+if(location.hash==='#galleryView')openView('galleryView');
 </script>
 </body></html>
