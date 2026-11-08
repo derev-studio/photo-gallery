@@ -912,7 +912,7 @@
             window.speechSynthesis.cancel();
             const voices = window.speechSynthesis.getVoices().filter(v => /^ru\b/i.test(v.lang));
             [[lastRobotReview.pedant, 0.9, 0.85, voices[0]],
-             [lastRobotReview.cynic, 1.06, 1.2, voices[1] || voices[0]]].forEach(([message, rate, pitch, voice], i) => {
+             [lastRobotReview.cynic, 0.90, 1.2, voices[1] || voices[0]]].forEach(([message, rate, pitch, voice], i) => {
                 const phrase = new SpeechSynthesisUtterance((i === 0 ? 'Педант. ' : 'Циник. ') + message);
                 phrase.lang = 'ru-RU';
                 if (voice) phrase.voice = voice;
