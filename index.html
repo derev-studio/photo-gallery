@@ -422,10 +422,6 @@
         .upload-area.dragging { background:#e3f5e8; border-color:#25674f; }
         #upload-section { display:block!important; }
         #loading-status { font-size:17px; color:#25674f; }
-        .quick-fields { display:flex; justify-content:center; align-items:end; flex-wrap:wrap; gap:12px; margin:17px 0; }
-        .quick-field { display:flex; flex-direction:column; text-align:left; gap:5px; min-width:210px; max-width:300px; flex:1; }
-        .quick-field label { font-weight:700; font-size:14px; }
-        .quick-field input,.quick-field select { width:100%; padding:11px 13px; border:1px solid #b7cbc0; border-radius:13px; background:#fff; color:#1a2332; font:inherit; }
         .quick-preview { display:none; max-height:300px; max-width:100%; border-radius:16px; margin:18px auto 0; object-fit:contain; box-shadow:0 6px 22px rgba(0,0,0,.08); }
         .quick-preview.show { display:block; }
         #upload-status { line-height:1.5; overflow-wrap:anywhere; }
@@ -436,10 +432,12 @@
         .quick-actions { display:flex; justify-content:center; flex-wrap:wrap; gap:12px; align-items:center; }
         .quick-actions .secondary { border:1px solid #b3d1c2; background:white; color:#25674f; box-shadow:none; }
         .quick-actions .secondary:hover { background:#edf7f0; }
+        /* Вход, темы и переключатели не нужны для обычной публикации. */
+        .header-controls,.tab[data-tab="tab2"] { display:none; }
         .gallery-item img { cursor:zoom-in; }
         .gallery-item .info { overflow-wrap:anywhere; }
         .broken-photo { display:none; min-height:180px; background:#f6f2ea; padding:25px; text-align:center; color:#735f4e; align-items:center; justify-content:center; }
-        @media (max-width:600px) { body { padding:8px; } .container { border-radius:19px; padding:17px 12px; } .upload-area { padding:20px 12px; } .quick-field { min-width:100%; } #start-btn { width:100%; } }
+        @media (max-width:600px) { body { padding:8px; } .container { border-radius:19px; padding:17px 12px; } .upload-area { padding:20px 12px; } #start-btn { width:100%; } }
     </style>
 <script src="analytics-client.js"></script>
 </head>
@@ -485,7 +483,7 @@
         </header>
 
         <!-- ВКЛАДКИ -->
-        <p class="lead">Фотографии и искусство Александра Деревяшкина и друзей. Выберите снимок, напишите своё имя и нажмите «Опубликовать». Нейросеть — только по желанию, потом.</p>
+        <p class="lead">Фотографии и искусство Александра Деревяшкина и друзей. Выберите снимок и нажмите «Опубликовать». Без анкет, регистрации и ожидания нейросети.</p>
         <div class="tabs">
             <span class="tab active" data-tab="tab1">📤 Добавить фото</span>
             <span class="tab" data-tab="tab3">🖼️ Смотреть работы</span>
@@ -498,13 +496,9 @@
         <div class="tab-content active" id="tab1">
             <h2>Поделитесь своей фотографией</h2>
             <div class="upload-area" id="drop-area">
-                <div id="loading-status" style="font-weight:600; margin-bottom:12px;">📸 Ваш снимок попадёт в галерею без ожидания ИИ</div>
+                <div id="loading-status" style="font-weight:600; margin-bottom:12px;">📸 Просто выберите фотографию</div>
                 <div class="progress-bar" id="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
                 <div id="upload-section">
-                    <div class="quick-fields">
-                        <div class="quick-field"><label for="author-name">Ваше имя *</label><input type="text" id="author-name" maxlength="70" placeholder="Как подписать фотографию?" autocomplete="name" required></div>
-                        <div class="quick-field"><label for="category-input">Раздел</label><select id="category-input"><option value="Другое">Выбрать раздел позже</option><option>Оранжерея</option><option>Кактусярий</option><option>Макромир</option><option>Пейзажи</option><option>Портретный зал</option><option>Животный мир</option><option>Натюрморт</option><option>Архитектура</option><option>Жанр Ню</option><option>Загадка</option><option>Спорт</option></select></div>
-                    </div>
                     <label for="file-input" class="file-label" id="file-btn">📂 Выбрать фотографию</label>
                     <input type="file" id="file-input" accept="image/*,.heic,.heif">
                     <img id="quick-preview" class="quick-preview" alt="Предпросмотр выбранной фотографии">
@@ -513,8 +507,7 @@
                 </div>
             </div>
             <div class="quick-actions">
-                <button class="btn" id="start-btn" onclick="goToStep3()" disabled>✅ Опубликовать фото</button>
-                <button class="btn secondary" onclick="switchTab('tab3')">🖼️ Посмотреть галерею</button>
+                <button class="btn" id="start-btn" onclick="goToStep3()" disabled>↑ Сначала выберите фото</button>
             </div>
         </div>
 
@@ -649,13 +642,9 @@
         let previewObjectUrl = '';
         let publishing = false;
         const uploadStatus = document.getElementById('upload-status');
-        const authorInput = document.getElementById('author-name');
-        authorInput.value = localStorage.getItem('galleryAuthor') || '';
-        authorInput.addEventListener('input', () => {
-            currentUser = authorInput.value.trim();
-            document.getElementById('start-btn').disabled = !selectedFile || !currentUser || publishing;
-        });
-        currentUser = authorInput.value.trim();
+        // Авторский псевдоним запоминаем, если он уже был указан ранее.
+        // Для новых посетителей поле имени не требуется.
+        currentUser = localStorage.getItem('galleryAuthor') || '';
 
         // ===== ПОЛЗУНОК =====
         const slider = document.getElementById('sensitivitySlider');
@@ -711,7 +700,8 @@
             preview.src = previewObjectUrl;
             preview.classList.add('show');
             preview.onerror = () => preview.classList.remove('show');
-            document.getElementById('start-btn').disabled = !authorInput.value.trim();
+            document.getElementById('start-btn').disabled = false;
+            document.getElementById('start-btn').textContent = '✅ Опубликовать фото';
         }
         document.getElementById('file-input').addEventListener('change', e => selectPhoto(e.target.files[0]));
         const dropArea = document.getElementById('drop-area');
@@ -972,8 +962,7 @@
 
         window.goToStep3 = async function() {
             if (publishing || !selectedFile) return;
-            currentAuthor = authorInput.value.trim();
-            if (!currentAuthor) { authorInput.focus(); uploadStatus.textContent = 'Укажите имя автора.'; return; }
+            currentAuthor = (localStorage.getItem('galleryAuthor') || '').trim() || 'Автор';
             publishing = true;
             const btn = document.getElementById('start-btn');
             btn.disabled = true;
@@ -989,17 +978,16 @@
                 const photo = {
                     id: Date.now(),
                     img: lastUploadedUrl,
-                    rubric: document.getElementById('category-input').value,
+                    rubric: 'Другое',
                     author: currentAuthor,
+                    filename: selectedFile.name,
                     isPro: false,
                     likes: 0, dislikes: 0, superLikes: 0,
                     date: new Date().toLocaleDateString('ru-RU'),
                     comments: []
                 };
                 await db.ref('photos/' + photo.id).set(photo);
-                localStorage.setItem('galleryAuthor', currentAuthor);
                 uploadStatus.textContent = '✅ Опубликовано!';
-                if (photo.rubric === 'Жанр Ню') document.getElementById('show-nude').checked = true;
                 const editUrl = 'editor.html?image=' + encodeURIComponent(lastUploadedUrl);
                 const success = document.getElementById('gallery-success');
                 success.style.display = 'block';
@@ -1018,8 +1006,8 @@
                 uploadStatus.style.color = '#b42318';
             } finally {
                 publishing = false;
-                btn.textContent = '✅ Опубликовать фото';
-                btn.disabled = !selectedFile || !authorInput.value.trim();
+                btn.textContent = selectedFile ? '✅ Опубликовать фото' : '↑ Сначала выберите фото';
+                btn.disabled = !selectedFile;
             }
         };
 
