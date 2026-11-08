@@ -652,10 +652,22 @@
         const ownPhotosKey = 'gallery_own_photo_ids_v1';
         const recentPhotoKey = 'gallery_recent_photo_v1';
         let ownPhotoIds = new Set();
-        const commentDrafts = new Map();
+        function restoreCommentDrafts(key) {
+            try {
+                const entries = JSON.parse(localStorage.getItem(key) || '[]');
+                return new Map(Array.isArray(entries) ? entries : []);
+            } catch { return new Map(); }
+        }
+        const commentDrafts = restoreCommentDrafts('gallery_new_comment_drafts');
         const expandedComments = new Set();
-        const commentEditDrafts = new Map();
+        const commentEditDrafts = restoreCommentDrafts('gallery_edit_comment_drafts');
         const activeCommentEdits = new Set();
+        function storeCommentDrafts() {
+            try {
+                localStorage.setItem('gallery_new_comment_drafts', JSON.stringify([...commentDrafts]));
+                localStorage.setItem('gallery_edit_comment_drafts', JSON.stringify([...commentEditDrafts]));
+            } catch { /* При заполненном хранилище текст остаётся в открытом поле. */ }
+        }
         try { ownPhotoIds = new Set(JSON.parse(localStorage.getItem(ownPhotosKey) || '[]').map(Number)); } catch {}
         let favorites = JSON.parse(localStorage.getItem('favs') || '[]');
         let currentLang = 'ru';
@@ -1239,9 +1251,11 @@
         document.getElementById('catalog-container').addEventListener('input', e => {
             if (e.target.matches('textarea[data-comment-photo]')) {
                 commentDrafts.set(e.target.dataset.commentPhoto, e.target.value);
+                storeCommentDrafts();
             }
             if (e.target.matches('textarea[data-edit-key]')) {
                 commentEditDrafts.set(e.target.dataset.editKey, e.target.value);
+                storeCommentDrafts();
             }
         });
 
@@ -1255,6 +1269,8 @@
                 const name = prompt('Введите ваше имя:');
                 if (!name) return;
                 currentUser = name.trim();
+                if (!currentUser) return;
+                localStorage.setItem('galleryAuthor', currentUser);
             }
             const button = input.parentElement.querySelector('button');
             button.disabled = true;
@@ -1273,6 +1289,7 @@
                 });
                 await ref.update({ comments });
                 commentDrafts.delete(String(photoId));
+                storeCommentDrafts();
                 const liveInput = document.getElementById(`comment-input-${photoId}`);
                 if (liveInput) liveInput.value = '';
             } catch (e) {
@@ -1303,8 +1320,9 @@
             const commentEl = document.querySelector(`#comments-${photoId} .comment[data-cid="${commentId}"] .c-text`);
             if (!form || !commentEl) return;
             if (!activeCommentEdits.has(key)) {
-                commentEditDrafts.set(key, commentEl.textContent);
+                if (!commentEditDrafts.has(key)) commentEditDrafts.set(key, commentEl.textContent);
                 activeCommentEdits.add(key);
+                storeCommentDrafts();
             }
             const input = form.querySelector('textarea');
             input.value = commentEditDrafts.get(key) || '';
@@ -1319,6 +1337,7 @@
             const key = `${photoId}:${commentId}`;
             activeCommentEdits.delete(key);
             commentEditDrafts.delete(key);
+            storeCommentDrafts();
             const form = document.getElementById(`edit-${photoId}-${commentId}`);
             if (form) { form.classList.remove('show'); form.querySelector('.comment-edit-status').textContent = ''; }
             const commentEl = document.querySelector(`#comments-${photoId} .comment[data-cid="${commentId}"] .c-text`);
@@ -1372,7 +1391,9 @@
             if (!currentUser) {
                 const name = prompt('Введите ваше имя:');
                 if (!name) return;
-                currentUser = name;
+                currentUser = name.trim();
+                if (!currentUser) return;
+                localStorage.setItem('galleryAuthor', currentUser);
             }
             const ref = db.ref('photos/' + photoId);
             ref.once('value', snap => {
