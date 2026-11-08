@@ -26,6 +26,15 @@ export default {
       const user = await verifyFirebaseUser(idToken);
       if (!user) return json({ error: 'Сессия Google недействительна. Войдите снова.' }, 401, cors);
 
+      // ImgBB uploads use multipart/form-data. Keep the ImgBB API key on the
+      // Worker (Cloudflare secret), never in the public GitHub Pages source.
+      if ((request.headers.get('Content-Type') || '').toLowerCase().includes('multipart/form-data')) {
+        if (origin !== 'https://derev-studio.github.io') {
+          return json({ error: 'Недопустимый источник загрузки' }, 403, cors);
+        }
+        return handleImgBBUpload(request, user, env, cors);
+      }
+
       const emailHash = await sha256(String(user.email || '').trim().toLowerCase());
       const isOwner = emailHash === OWNER_EMAIL_SHA256 || emailHash === IRINA_EMAIL_SHA256;
 
@@ -153,6 +162,40 @@ export default {
     }
   }
 };
+
+async function handleImgBBUpload(request, user, env, cors) {
+  if (!env.IMGBB_API_KEY) return json({ error: 'ImgBB пока не подключён владельцем сайта' }, 503, cors);
+  if (!user.email || user.emailVerified !== true) {
+    return json({ error: 'Войдите через подтверждённый аккаунт Google' }, 403, cors);
+  }
+
+  const form = await request.formData();
+  if (form.get('action') !== 'imgbbUpload') return json({ error: 'Неизвестная операция' }, 400, cors);
+  const image = form.get('image');
+  if (!image || typeof image.size !== 'number' || typeof image.arrayBuffer !== 'function') {
+    return json({ error: 'Выберите изображение' }, 400, cors);
+  }
+  if (!String(image.type || '').startsWith('image/')) {
+    return json({ error: 'Разрешены только изображения' }, 415, cors);
+  }
+  if (image.size === 0 || image.size > 32 * 1024 * 1024) {
+    return json({ error: 'Размер изображения должен быть не больше 32 МБ' }, 413, cors);
+  }
+
+  const outgoing = new FormData();
+  outgoing.set('image', image, String(image.name || 'photo'));
+  const response = await fetch('https://api.imgbb.com/1/upload?key=' + encodeURIComponent(env.IMGBB_API_KEY), {
+    method: 'POST',
+    body: outgoing
+  });
+  let data = {};
+  try { data = await response.json(); } catch (_) { /* Avoid echoing upstream HTML */ }
+  const url = data?.data?.image?.url || data?.data?.url || '';
+  if (!response.ok || !url || data?.success !== true) {
+    return json({ error: data?.error?.message || 'ImgBB не принял фотографию' }, 502, cors);
+  }
+  return json({ ok: true, url, thumbUrl: data?.data?.thumb?.url || '', storage: 'imgbb' }, 200, cors);
+}
 
 async function handleRealtime(body, env, cors) {
   const site = String(body?.site || '').trim().replace(/[^a-zA-Z0-9_-]/g,'');
