@@ -186,7 +186,20 @@
             border: 2px solid #e2e8f0; border-radius: 20px;
             padding: 16px; display: flex; align-items: center; gap: 16px;
         }
-        .robot-card .avatar { font-size: 40px; }
+        .robot-card .avatar {
+            width: 120px; height: 154px; flex: 0 0 120px;
+            border-radius: 16px; object-fit: cover; object-position: center 20%;
+            box-shadow: 0 6px 18px rgba(25,40,54,.14);
+            transition: box-shadow .25s ease;
+        }
+        .robot-card.speaking .avatar { animation: robot-speaking .8s ease-in-out infinite alternate; }
+        .robot-card.pedant.speaking .avatar { box-shadow: 0 0 0 4px rgba(0,210,211,.35), 0 8px 24px rgba(0,210,211,.28); }
+        .robot-card.cynic.speaking .avatar { box-shadow: 0 0 0 4px rgba(255,107,107,.35), 0 8px 24px rgba(255,107,107,.28); }
+        @keyframes robot-speaking { from { transform: translateY(0); } to { transform: translateY(-4px); } }
+        @media (max-width: 700px) {
+            .robot-card .avatar { width: 104px; height: 136px; flex-basis: 104px; }
+        }
+        @media (prefers-reduced-motion: reduce) { .robot-card.speaking .avatar { animation: none; } }
         .robot-card .speech { font-size: 17px; line-height: 1.55; margin-top: 6px; }
         .handshake {
             display: none; justify-content: center; font-size: 28px;
@@ -565,11 +578,11 @@
             </div>
             <div class="robots">
                 <div class="robot-card pedant" style="border-color:#00d2d3;">
-                    <span class="avatar">🤖</span>
+                    <img class="avatar" src="assets/robot-pedant.webp" alt="Робот-женщина Педант" width="120" height="154" loading="lazy">
                     <div><b style="color:#00d2d3;">Робот-Педант</b><div class="speech" id="pedant-text">Ожидаю...</div></div>
                 </div>
                 <div class="robot-card cynic" style="border-color:#ff6b6b;">
-                    <span class="avatar">🤖</span>
+                    <img class="avatar" src="assets/robot-cynic.webp" alt="Робот-мужчина Циник" width="120" height="154" loading="lazy">
                     <div><b style="color:#ff6b6b;">Робот-Циник</b><div class="speech" id="cynic-text">Готов.</div></div>
                 </div>
             </div>
@@ -910,6 +923,7 @@
                 return;
             }
             window.speechSynthesis.cancel();
+            document.querySelectorAll('#tab2 .robot-card').forEach(card => card.classList.remove('speaking'));
             const voices = window.speechSynthesis.getVoices().filter(v => /^ru\b/i.test(v.lang));
             [[lastRobotReview.pedant, 0.9, 0.85, voices[0]],
              [lastRobotReview.cynic, 0.90, 1.2, voices[1] || voices[0]]].forEach(([message, rate, pitch, voice], i) => {
@@ -918,6 +932,9 @@
                 if (voice) phrase.voice = voice;
                 phrase.rate = rate;
                 phrase.pitch = pitch;
+                const card = document.querySelector(i === 0 ? '#tab2 .robot-card.pedant' : '#tab2 .robot-card.cynic');
+                phrase.onstart = () => card.classList.add('speaking');
+                phrase.onend = phrase.onerror = () => card.classList.remove('speaking');
                 window.speechSynthesis.speak(phrase);
             });
         };
