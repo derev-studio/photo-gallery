@@ -547,6 +547,7 @@
             <span class="tab" data-tab="tab4">⭐ Избранное</span>
             <span class="tab" data-tab="tab5">💬 Чат</span>
             <span class="tab" data-tab="tab2">🤖 ИИ</span>
+            <a class="tab" href="editor-ai.html#galleryView" style="text-decoration:none;">👤 Мои фото</a>
             <a class="tab" href="editor.html" style="text-decoration:none;">🎨 Фоторедактор</a>
             <a class="tab" href="editor-ai.html" style="text-decoration:none;">✨ ИИ‑редактор</a>
         </div>
@@ -1330,7 +1331,18 @@
                     date: new Date().toLocaleDateString('ru-RU'),
                     comments: []
                 };
-                await db.ref('photos/' + photo.id).set(photo);
+                // Одна публикация: общая галерея и личный альбом того же Google-аккаунта.
+                // Обе записи сохраняются вместе, чтобы фото не потерялось между разделами.
+                const personalWork = {
+                    id: photo.id, url: photo.img, mode: 'Моё фото', model: '',
+                    prompt: photo.filename, time: new Date().toLocaleString('ru-RU'),
+                    date: photo.date, published: true, publicId: photo.id,
+                    ownerName: currentAuthor
+                };
+                await db.ref().update({
+                    ['photos/' + photo.id]: photo,
+                    ['users/' + account.uid + '/works/' + photo.id]: personalWork
+                });
                 ownPhotoIds.add(photo.id);
                 localStorage.setItem(ownPhotosKey, JSON.stringify([...ownPhotoIds]));
                 localStorage.setItem(recentPhotoKey, JSON.stringify({signature, id: photo.id}));
