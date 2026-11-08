@@ -254,34 +254,47 @@
         }
         .comment .c-author { grid-column: 1; font-weight: 700; }
         .comment .c-text {
-            grid-column: 1 / -1; min-width: 0; max-width: 78ch;
+            grid-column: 1 / -1; min-width: 0; max-width: 90ch;
             overflow-wrap: anywhere; white-space: pre-wrap; word-break: normal;
-            font-size: 15px; line-height: 1.65; color: #243247;
+            font-size: 20px; line-height: 1.7; color: #243247;
         }
         .comment .c-time { grid-column: 2; grid-row: 1; font-size: 12px; color: #75818d; }
         .comment .c-actions { grid-column: 1 / -1; display: flex; gap: 10px; }
-        .comment .c-actions button { background: none; border: none; font-size: 13px; cursor: pointer; }
+        .comment .c-actions button { background: #eef5f0; color: #25674f; border: none; border-radius: 18px; font-size: 16px; cursor: pointer; padding: 9px 14px; }
+        .comment .c-text[hidden], .comment-input-area[hidden] { display: none; }
+        .comment .comment-edit-form { display: none; grid-column: 1 / -1; width: 100%; max-width: 1000px; flex-direction: column; gap: 10px; }
+        .comment .comment-edit-form.show { display: flex; }
+        .comment .comment-edit-form textarea {
+            width: 100%; min-width: 0; min-height: 300px; padding: 18px 20px;
+            border: 2px solid #6aa78b; border-radius: 14px; background: #fff;
+            font: inherit; font-size: 20px; line-height: 1.7; resize: vertical;
+        }
+        .comment .comment-edit-buttons { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .comment .comment-edit-buttons button { border: none; border-radius: 24px; padding: 11px 20px; cursor: pointer; font-size: 16px; }
+        .comment .comment-edit-buttons .save-edit { color: white; background: #25674f; font-weight: 700; }
+        .comment .comment-edit-buttons .cancel-edit { background: #edf1f0; color: #374151; }
+        .comment .comment-edit-status { color: #b42318; font-size: 14px; }
         .comment .reply-form { display: none; grid-column: 1 / -1; margin-top: 6px; gap: 8px; flex-wrap: wrap; }
         .comment .reply-form.show { display: flex; }
-        .comment .reply-form textarea { flex: 1 1 220px; min-width: 0; min-height: 70px; padding: 10px 13px; border: 1px solid #cbd5e1; border-radius: 12px; font: inherit; resize: vertical; }
-        .comment .reply-form button { background: #1a3a6b; color: #fff; border: none; border-radius: 40px; padding: 6px 16px; cursor: pointer; }
+        .comment .reply-form textarea { flex: 1 1 100%; min-width: 0; min-height: 150px; padding: 16px 18px; border: 2px solid #cbd5e1; border-radius: 12px; font: inherit; font-size: 18px; line-height: 1.6; resize: vertical; }
+        .comment .reply-form button { background: #25674f; color: #fff; border: none; border-radius: 40px; padding: 12px 20px; font-size: 16px; font-weight: 700; cursor: pointer; }
         .comment .child-comments { grid-column: 1 / -1; margin-left: 12px; border-left: 2px solid rgba(26,35,50,0.08); padding-left: 16px; min-width: 0; }
         .comment .child-comments:empty { display: none; }
 
         .comment-input-area {
             display: flex; flex-direction: column; align-items: flex-start;
-            gap: 10px; margin-top: 14px; max-width: 850px;
+            gap: 12px; margin-top: 16px; max-width: 1000px;
         }
         .comment-input-area textarea {
-            display: block; width: 100%; min-width: 0; min-height: 126px;
-            padding: 13px 15px; border: 1px solid #b8cfc5; border-radius: 14px;
-            background: #fff; color: #1a2332; font: inherit; font-size: 16px;
-            line-height: 1.55; resize: vertical;
+            display: block; width: 100%; min-width: 0; min-height: 260px;
+            padding: 18px 20px; border: 2px solid #b8cfc5; border-radius: 14px;
+            background: #fff; color: #1a2332; font: inherit; font-size: 20px;
+            line-height: 1.7; resize: vertical;
         }
         .comment-input-area textarea:focus { outline: 2px solid #6aa78b; outline-offset: 2px; }
         .comment-input-area button {
             background: #25674f; color: #fff; border: none;
-            border-radius: 40px; padding: 10px 22px; cursor: pointer; font-weight: 600;
+            border-radius: 40px; padding: 13px 24px; cursor: pointer; font-weight: 700; font-size: 17px;
         }
         .comment-input-area button:disabled { opacity: .65; cursor: wait; }
 
@@ -641,6 +654,8 @@
         let ownPhotoIds = new Set();
         const commentDrafts = new Map();
         const expandedComments = new Set();
+        const commentEditDrafts = new Map();
+        const activeCommentEdits = new Set();
         try { ownPhotoIds = new Set(JSON.parse(localStorage.getItem(ownPhotosKey) || '[]').map(Number)); } catch {}
         let favorites = JSON.parse(localStorage.getItem('favs') || '[]');
         let currentLang = 'ru';
@@ -1100,6 +1115,8 @@
             const container = document.getElementById('catalog-container');
             const activePhoto = document.activeElement?.dataset?.commentPhoto;
             const caret = activePhoto ? document.activeElement.selectionStart : null;
+            const activeEditKey = document.activeElement?.dataset?.editKey;
+            const editCaret = activeEditKey ? document.activeElement.selectionStart : null;
             const search = document.getElementById('search-input').value.toLowerCase();
             let filtered = allPhotos.filter(p => p.rubric !== 'Жанр Ню' || document.getElementById('show-nude').checked);
 
@@ -1163,13 +1180,22 @@
                                         ${comments.map(c => `
                                             <div class="comment" data-cid="${c.id}">
                                                 <span class="c-author">${escapeHtml(c.author)}</span>
-                                                <span class="c-text" contenteditable="false">${escapeHtml(c.text)}</span>
+                                                <span class="c-text" ${activeCommentEdits.has(`${item.id}:${c.id}`) ? 'hidden' : ''}>${escapeHtml(c.text)}</span>
                                                 <span class="c-time">${escapeHtml(c.time)}</span>
                                                 <span class="c-actions">
-                                                    ${(c.author === currentUser || isAdmin) ? `<button onclick="editComment(${item.id},'${c.id}')">✎</button>` : ''}
-                                                    ${(c.author === currentUser || isAdmin) ? `<button onclick="deleteComment(${item.id},'${c.id}')">✕</button>` : ''}
-                                                    <button onclick="showReply(${item.id},'${c.id}')">↩</button>
+                                                    ${(c.author === currentUser || isAdmin) ? `<button onclick="editComment(${item.id},'${c.id}')" title="Изменить комментарий" aria-label="Изменить комментарий">✎ Изменить</button>` : ''}
+                                                    ${(c.author === currentUser || isAdmin) ? `<button onclick="deleteComment(${item.id},'${c.id}')" title="Удалить комментарий" aria-label="Удалить комментарий">✕ Удалить</button>` : ''}
+                                                    <button onclick="showReply(${item.id},'${c.id}')" title="Ответить" aria-label="Ответить">↩ Ответить</button>
                                                 </span>
+                                                ${(c.author === currentUser || isAdmin) ? `
+                                                <div class="comment-edit-form ${activeCommentEdits.has(`${item.id}:${c.id}`) ? 'show' : ''}" id="edit-${item.id}-${c.id}">
+                                                    <textarea data-edit-key="${item.id}:${c.id}" rows="9" maxlength="20000" aria-label="Изменить рассказ"></textarea>
+                                                    <div class="comment-edit-buttons">
+                                                        <button class="save-edit" onclick="saveEditedComment(${item.id},'${c.id}')">Сохранить изменения</button>
+                                                        <button class="cancel-edit" onclick="cancelEditedComment(${item.id},'${c.id}')">Отмена</button>
+                                                        <span class="comment-edit-status" role="status"></span>
+                                                    </div>
+                                                </div>` : ''}
                                                 <div class="reply-form" id="reply-${item.id}-${c.id}">
                                                     <textarea rows="2" placeholder="Ответ..." id="reply-input-${item.id}-${c.id}"></textarea>
                                                     <button onclick="submitReply(${item.id},'${c.id}')">Ответить</button>
@@ -1182,9 +1208,9 @@
                                             </div>
                                         `).join('')}
                                     </div>
-                                    <div class="comment-input-area">
+                                    <div class="comment-input-area" ${[...activeCommentEdits].some(k => k.startsWith(item.id + ':')) ? 'hidden' : ''}>
                                         <textarea id="comment-input-${item.id}" data-comment-photo="${item.id}" placeholder="Ваш комментарий..." rows="4" maxlength="10000" aria-label="Написать комментарий"></textarea>
-                                        <button onclick="addComment(${item.id})">Отправить</button>
+                                        <button onclick="addComment(${item.id})">Опубликовать комментарий</button>
                                     </div>
                                 </div>
                             </div>
@@ -1197,14 +1223,25 @@
             container.querySelectorAll('textarea[data-comment-photo]').forEach(input => {
                 input.value = commentDrafts.get(input.dataset.commentPhoto) || '';
             });
+            container.querySelectorAll('textarea[data-edit-key]').forEach(input => {
+                input.value = commentEditDrafts.get(input.dataset.editKey) || '';
+            });
             if (activePhoto) {
                 const input = document.getElementById(`comment-input-${activePhoto}`);
                 if (input) { input.focus(); input.setSelectionRange(caret, caret); }
+            }
+            if (activeEditKey) {
+                const input = [...container.querySelectorAll('textarea[data-edit-key]')]
+                    .find(el => el.dataset.editKey === activeEditKey);
+                if (input) { input.focus(); input.setSelectionRange(editCaret, editCaret); }
             }
         };
         document.getElementById('catalog-container').addEventListener('input', e => {
             if (e.target.matches('textarea[data-comment-photo]')) {
                 commentDrafts.set(e.target.dataset.commentPhoto, e.target.value);
+            }
+            if (e.target.matches('textarea[data-edit-key]')) {
+                commentEditDrafts.set(e.target.dataset.editKey, e.target.value);
             }
         });
 
@@ -1213,7 +1250,7 @@
             const input = document.getElementById(`comment-input-${photoId}`);
             if (!input) return;
             const text = input.value.trim();
-            if (!text) return alert('Напишите комментарий!');
+            if (!text) { input.focus(); return; }
             if (!currentUser) {
                 const name = prompt('Введите ваше имя:');
                 if (!name) return;
@@ -1258,27 +1295,68 @@
             });
         };
 
+        // Редактирование отдельно от публикации нового комментария:
+        // большой редактор, собственное сохранение, отмена, сохранение черновика.
         window.editComment = function(photoId, commentId) {
+            const key = `${photoId}:${commentId}`;
+            const form = document.getElementById(`edit-${photoId}-${commentId}`);
             const commentEl = document.querySelector(`#comments-${photoId} .comment[data-cid="${commentId}"] .c-text`);
-            if (!commentEl) return;
-            if (commentEl.contentEditable === 'true') {
-                const ref = db.ref('photos/' + photoId);
-                ref.once('value', snap => {
-                    const photo = snap.val();
-                    if (!photo) return;
-                    const comments = photo.comments || [];
-                    const idx = comments.findIndex(c => c.id === commentId);
-                    if (idx !== -1) {
-                        comments[idx].text = commentEl.textContent.trim();
-                        ref.update({ comments: comments });
-                    }
-                });
-                commentEl.contentEditable = 'false';
-                commentEl.style.background = 'transparent';
-            } else {
-                commentEl.contentEditable = 'true';
-                commentEl.style.background = '#f0f4fa';
-                commentEl.focus();
+            if (!form || !commentEl) return;
+            if (!activeCommentEdits.has(key)) {
+                commentEditDrafts.set(key, commentEl.textContent);
+                activeCommentEdits.add(key);
+            }
+            const input = form.querySelector('textarea');
+            input.value = commentEditDrafts.get(key) || '';
+            form.classList.add('show');
+            commentEl.hidden = true;
+            const composer = document.querySelector(`#commentbox-${photoId} .comment-input-area`);
+            if (composer) composer.hidden = true;
+            input.focus();
+        };
+
+        window.cancelEditedComment = function(photoId, commentId) {
+            const key = `${photoId}:${commentId}`;
+            activeCommentEdits.delete(key);
+            commentEditDrafts.delete(key);
+            const form = document.getElementById(`edit-${photoId}-${commentId}`);
+            if (form) { form.classList.remove('show'); form.querySelector('.comment-edit-status').textContent = ''; }
+            const commentEl = document.querySelector(`#comments-${photoId} .comment[data-cid="${commentId}"] .c-text`);
+            if (commentEl) commentEl.hidden = false;
+            const composer = document.querySelector(`#commentbox-${photoId} .comment-input-area`);
+            if (composer && ![...activeCommentEdits].some(k => k.startsWith(`${photoId}:`))) composer.hidden = false;
+        };
+
+        window.saveEditedComment = async function(photoId, commentId) {
+            const key = `${photoId}:${commentId}`;
+            const form = document.getElementById(`edit-${photoId}-${commentId}`);
+            const input = form?.querySelector('textarea');
+            if (!input) return;
+            const text = input.value.trim();
+            const status = form.querySelector('.comment-edit-status');
+            if (!text) { status.textContent = 'Напишите текст.'; input.focus(); return; }
+            const saveButton = form.querySelector('.save-edit');
+            saveButton.disabled = true;
+            status.textContent = 'Сохраняем…';
+            try {
+                const ref = db.ref(`photos/${photoId}/comments`);
+                const result = await ref.transaction(current => {
+                    if (!current) return;
+                    const comments = Array.isArray(current) ? [...current] : Object.values(current);
+                    const idx = comments.findIndex(c => String(c.id) === String(commentId));
+                    if (idx === -1) return;
+                    if (!isAdmin && comments[idx].author !== currentUser) return;
+                    comments[idx] = { ...comments[idx], text };
+                    return comments;
+                }, undefined, false);
+                if (!result.committed) throw new Error('Не удалось изменить запись. Обновите страницу.');
+                window.cancelEditedComment(photoId, commentId);
+                const commentEl = document.querySelector(`#comments-${photoId} .comment[data-cid="${commentId}"] .c-text`);
+                if (commentEl) commentEl.textContent = text;
+            } catch (e) {
+                status.textContent = 'Не сохранено: ' + e.message;
+            } finally {
+                if (saveButton.isConnected) saveButton.disabled = false;
             }
         };
 
