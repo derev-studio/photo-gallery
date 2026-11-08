@@ -457,7 +457,7 @@
         .quick-actions .secondary:hover { background:#edf7f0; }
         /* Вход, темы и переключатели не нужны для обычной публикации. */
         .header-controls,.tab[data-tab="tab2"] { display:none; }
-        #userStatus { cursor:pointer; font-size:13px; background:#e8f3ec; color:#25674f; padding:7px 12px; text-decoration:none; }
+        #userStatus { cursor:pointer; font-size:15px; background:#e8f3ec; color:#25674f; padding:10px 16px; border:1px solid #c7e4d5; border-radius:24px; font-weight:700; }
         .gallery-item img { cursor:zoom-in; }
         #lightbox {
             display:none; position:fixed; inset:0; z-index:12000;
@@ -518,7 +518,7 @@
                 <button class="lang-btn active" id="lang-ru" onclick="setLang('ru')">РУС</button>
                 <button class="lang-btn" id="lang-en" onclick="setLang('en')">ENG</button>
             </div>
-            <a class="user-status" id="userStatus" href="admin.html" title="Вход владельца">👤 Войти</a>
+            <button class="user-status" id="userStatus" type="button" onclick="handleAccountClick()" title="Личный аккаунт Google">👤 Войти через Google</button>
         </header>
 
         <!-- ВКЛАДКИ -->
@@ -609,7 +609,6 @@
             <h2>💬 Общий чат</h2>
             <div class="chat-box" id="chat-box"></div>
             <div class="chat-input-area">
-                <input type="text" id="chat-name" placeholder="Ваше имя" style="max-width:150px;">
                 <input type="text" id="chat-input" placeholder="Напишите сообщение..." onkeydown="if(event.key==='Enter') sendChat()">
                 <button onclick="sendChat()">Отправить</button>
             </div>
@@ -648,6 +647,7 @@
         let currentAuthor = "";
         let isPro = false;
         let isAdmin = false;
+        let authUser = null;
         let allPhotos = [];
         const ownPhotosKey = 'gallery_own_photo_ids_v1';
         const recentPhotoKey = 'gallery_recent_photo_v1';
@@ -792,11 +792,37 @@
         // ===== ОБНОВЛЕНИЕ СТАТУСА =====
         function updateUserStatus() {
             const el = document.getElementById('userStatus');
-            let text = '👤 Войти';
-            if (isAdmin) text = '🎮 Админ';
-            else if (isPro) text = '👑 PRO';
-            el.textContent = text;
+            el.textContent = authUser ? '👤 Мой аккаунт' : '👤 Войти через Google';
+            el.title = authUser ? 'Выйти из аккаунта Google' : 'Войти в личный аккаунт Google';
         }
+
+        async function ensureGoogleUser() {
+            const auth = firebase.auth();
+            if (auth.currentUser) { authUser = auth.currentUser; return auth.currentUser; }
+            try {
+                const result = await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
+                authUser = result.user;
+                currentUser = result.user.displayName || result.user.email?.split('@')[0] || 'Участник';
+                updateUserStatus();
+                return result.user;
+            } catch (e) {
+                if (e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request') return null;
+                if (e.code === 'auth/popup-blocked') {
+                    await auth.signInWithRedirect(new firebase.auth.GoogleAuthProvider());
+                    return null;
+                }
+                alert('Не удалось войти через Google: ' + (e.message || 'Попробуйте снова.'));
+                return null;
+            }
+        }
+
+        window.handleAccountClick = async function() {
+            if (!firebase.auth().currentUser) {
+                await ensureGoogleUser();
+                return;
+            }
+            if (confirm('Выйти из аккаунта Google?')) await firebase.auth().signOut();
+        };
 
         // ===== ШАГ 2 =====
         window.goToStep2 = async function() {
@@ -1018,7 +1044,6 @@
 
         window.goToStep3 = async function() {
             if (publishing || !selectedFile) return;
-            currentAuthor = (localStorage.getItem('galleryAuthor') || '').trim() || 'Автор';
             const signature = selectedFile.name + ':' + selectedFile.size;
             let recent = null;
             try { recent = JSON.parse(localStorage.getItem(recentPhotoKey) || 'null'); } catch {}
@@ -1027,6 +1052,9 @@
                 switchTab('tab3');
                 return;
             }
+            const account = await ensureGoogleUser();
+            if (!account) { uploadStatus.textContent = 'Войдите через Google, чтобы опубликовать фото.'; return; }
+            currentAuthor = account.displayName || account.email?.split('@')[0] || 'Участник';
             publishing = true;
             const btn = document.getElementById('start-btn');
             btn.disabled = true;
@@ -1044,6 +1072,7 @@
                     img: lastUploadedUrl,
                     rubric: 'Другое',
                     author: currentAuthor,
+                    ownerUid: account.uid,
                     filename: selectedFile.name,
                     bytes: selectedFile.size,
                     isPro: false,
@@ -1107,15 +1136,16 @@
             box.scrollTop = box.scrollHeight;
         });
 
-        window.sendChat = function() {
-            const nameInput = document.getElementById('chat-name');
+        window.sendChat = async function() {
             const textInput = document.getElementById('chat-input');
-            const name = nameInput.value.trim() || 'Аноним';
             const text = textInput.value.trim();
             if (!text) return;
+            const account = await ensureGoogleUser();
+            if (!account) return;
             const msg = {
                 id: Date.now(),
-                author: name,
+                author: account.displayName || account.email?.split('@')[0] || 'Участник',
+                userUid: account.uid,
                 text: text,
                 time: new Date().toLocaleTimeString('ru-RU', {hour:'2-digit',minute:'2-digit'})
             };
@@ -1123,6 +1153,10 @@
         };
 
         // ===== ГАЛЕРЕЯ =====
+        function canEditComment(comment) {
+            return isAdmin || !!(authUser && comment.userUid && comment.userUid === authUser.uid);
+        }
+
         window.renderCatalog = function() {
             const container = document.getElementById('catalog-container');
             const activePhoto = document.activeElement?.dataset?.commentPhoto;
@@ -1184,7 +1218,7 @@
                                         <button class="icon-btn" onclick="downloadPhoto(decodeURIComponent('${imageArg}'))" title="Скачать">📥</button>
                                         <button class="icon-btn" onclick="location.href='editor.html?image='+encodeURIComponent(decodeURIComponent('${imageArg}'))" title="Открыть в фоторедакторе">🎨</button>
                                         <button class="icon-btn" onclick="toggleComments(${item.id})" title="Комментарии">💬${comments.length ? ' ' + comments.length : ''}</button>
-                                        ${(isAdmin || ownPhotoIds.has(Number(item.id))) ? `<button class="icon-btn" style="color:#b42318;" onclick="deletePhoto(${item.id})" title="Удалить своё фото" aria-label="Удалить фото">🗑️</button>` : ''}
+                                        ${(isAdmin || (authUser && (item.ownerUid === authUser.uid || (!item.ownerUid && ownPhotoIds.has(Number(item.id)))))) ? `<button class="icon-btn" style="color:#b42318;" onclick="deletePhoto(${item.id})" title="Удалить своё фото" aria-label="Удалить фото">🗑️</button>` : ''}
                                     </div>
                                 </div>
                                 <div class="comments-wrap" id="commentbox-${item.id}" style="${expandedComments.has(Number(item.id)) ? '' : 'display:none'}">
@@ -1195,11 +1229,11 @@
                                                 <span class="c-text" ${activeCommentEdits.has(`${item.id}:${c.id}`) ? 'hidden' : ''}>${escapeHtml(c.text)}</span>
                                                 <span class="c-time">${escapeHtml(c.time)}</span>
                                                 <span class="c-actions">
-                                                    ${(c.author === currentUser || isAdmin) ? `<button onclick="editComment(${item.id},'${c.id}')" title="Изменить комментарий" aria-label="Изменить комментарий">✎ Изменить</button>` : ''}
-                                                    ${(c.author === currentUser || isAdmin) ? `<button onclick="deleteComment(${item.id},'${c.id}')" title="Удалить комментарий" aria-label="Удалить комментарий">✕ Удалить</button>` : ''}
+                                                    ${canEditComment(c) ? `<button onclick="editComment(${item.id},'${c.id}')" title="Изменить комментарий" aria-label="Изменить комментарий">✎ Изменить</button>` : ''}
+                                                    ${canEditComment(c) ? `<button onclick="deleteComment(${item.id},'${c.id}')" title="Удалить комментарий" aria-label="Удалить комментарий">✕ Удалить</button>` : ''}
                                                     <button onclick="showReply(${item.id},'${c.id}')" title="Ответить" aria-label="Ответить">↩ Ответить</button>
                                                 </span>
-                                                ${(c.author === currentUser || isAdmin) ? `
+                                                ${canEditComment(c) ? `
                                                 <div class="comment-edit-form ${activeCommentEdits.has(`${item.id}:${c.id}`) ? 'show' : ''}" id="edit-${item.id}-${c.id}">
                                                     <textarea data-edit-key="${item.id}:${c.id}" rows="9" maxlength="20000" aria-label="Изменить рассказ"></textarea>
                                                     <div class="comment-edit-buttons">
@@ -1265,29 +1299,25 @@
             if (!input) return;
             const text = input.value.trim();
             if (!text) { input.focus(); return; }
-            if (!currentUser) {
-                const name = prompt('Введите ваше имя:');
-                if (!name) return;
-                currentUser = name.trim();
-                if (!currentUser) return;
-                localStorage.setItem('galleryAuthor', currentUser);
-            }
+            const account = await ensureGoogleUser();
+            if (!account) return;
             const button = input.parentElement.querySelector('button');
             button.disabled = true;
-            const ref = db.ref('photos/' + photoId);
             try {
-                const snap = await ref.once('value');
-                const photo = snap.val();
-                if (!photo) throw new Error('Фотография не найдена');
-                const comments = Array.isArray(photo.comments) ? photo.comments : Object.values(photo.comments || {});
-                comments.push({
+                if (!allPhotos.some(p => String(p.id) === String(photoId))) throw new Error('Фотография не найдена');
+                const comment = {
                     id: Date.now() + '_' + Math.random().toString(36).slice(2,6),
-                    author: currentUser,
+                    author: account.displayName || account.email?.split('@')[0] || 'Участник',
+                    userUid: account.uid,
                     text: text,
                     time: new Date().toLocaleTimeString('ru-RU', {hour:'2-digit',minute:'2-digit'}),
                     replies: []
-                });
-                await ref.update({ comments });
+                };
+                const result = await db.ref(`photos/${photoId}/comments`).transaction(current => {
+                    const comments = Array.isArray(current) ? [...current] : Object.values(current || {});
+                    return [...comments, comment];
+                }, undefined, false);
+                if (!result.committed) throw new Error('Комментарий не сохранён.');
                 commentDrafts.delete(String(photoId));
                 storeCommentDrafts();
                 const liveInput = document.getElementById(`comment-input-${photoId}`);
@@ -1300,16 +1330,18 @@
             }
         };
 
-        window.deleteComment = function(photoId, commentId) {
+        window.deleteComment = async function(photoId, commentId) {
             if (!confirm('Удалить комментарий?')) return;
-            const ref = db.ref('photos/' + photoId);
-            ref.once('value', snap => {
-                const photo = snap.val();
-                if (!photo) return;
-                let comments = photo.comments || [];
-                comments = comments.filter(c => c.id !== commentId);
-                ref.update({ comments: comments });
-            });
+            try {
+                const result = await db.ref(`photos/${photoId}/comments`).transaction(current => {
+                    if (!current) return;
+                    const comments = Array.isArray(current) ? [...current] : Object.values(current);
+                    const target = comments.find(c => c && String(c.id) === String(commentId));
+                    if (!target || !canEditComment(target)) return;
+                    return comments.filter(c => c && String(c.id) !== String(commentId));
+                }, undefined, false);
+                if (!result.committed) throw new Error('Нет права удалить эту запись.');
+            } catch (e) { alert('Не удалось удалить: ' + e.message); }
         };
 
         // Редактирование отдельно от публикации нового комментария:
@@ -1362,9 +1394,9 @@
                 const result = await ref.transaction(current => {
                     if (!current) return;
                     const comments = Array.isArray(current) ? [...current] : Object.values(current);
-                    const idx = comments.findIndex(c => String(c.id) === String(commentId));
+                    const idx = comments.findIndex(c => c && String(c.id) === String(commentId));
                     if (idx === -1) return;
-                    if (!isAdmin && comments[idx].author !== currentUser) return;
+                    if (!canEditComment(comments[idx])) return;
                     comments[idx] = { ...comments[idx], text };
                     return comments;
                 }, undefined, false);
@@ -1384,35 +1416,31 @@
             form.classList.toggle('show');
         };
 
-        window.submitReply = function(photoId, commentId) {
+        window.submitReply = async function(photoId, commentId) {
             const input = document.getElementById(`reply-input-${photoId}-${commentId}`);
             const text = input.value.trim();
-            if (!text) return alert('Напишите ответ!');
-            if (!currentUser) {
-                const name = prompt('Введите ваше имя:');
-                if (!name) return;
-                currentUser = name.trim();
-                if (!currentUser) return;
-                localStorage.setItem('galleryAuthor', currentUser);
-            }
-            const ref = db.ref('photos/' + photoId);
-            ref.once('value', snap => {
-                const photo = snap.val();
-                if (!photo) return;
-                const comments = photo.comments || [];
-                const idx = comments.findIndex(c => c.id === commentId);
-                if (idx !== -1) {
-                    if (!comments[idx].replies) comments[idx].replies = [];
-                    comments[idx].replies.push({
-                        author: currentUser,
+            if (!text) { input.focus(); return; }
+            const account = await ensureGoogleUser();
+            if (!account) return;
+            const reply = {
+                        author: account.displayName || account.email?.split('@')[0] || 'Участник',
+                        userUid: account.uid,
                         text: text,
                         time: new Date().toLocaleTimeString('ru-RU', {hour:'2-digit',minute:'2-digit'})
-                    });
-                    ref.update({ comments: comments });
-                    input.value = '';
-                    document.getElementById(`reply-${photoId}-${commentId}`).classList.remove('show');
-                }
-            });
+            };
+            try {
+                const result = await db.ref(`photos/${photoId}/comments`).transaction(current => {
+                    if (!current) return;
+                    const comments = Array.isArray(current) ? [...current] : Object.values(current);
+                    const idx = comments.findIndex(c => c && String(c.id) === String(commentId));
+                    if (idx === -1) return;
+                    comments[idx] = { ...comments[idx], replies: [...(comments[idx].replies || []), reply] };
+                    return comments;
+                }, undefined, false);
+                if (!result.committed) throw new Error('Ответ не сохранён.');
+                input.value = '';
+                document.getElementById(`reply-${photoId}-${commentId}`)?.classList.remove('show');
+            } catch (e) { alert('Не удалось отправить: ' + e.message); }
         };
 
         // ===== ИЗБРАННОЕ =====
@@ -1483,7 +1511,9 @@
         };
 
         window.deletePhoto = async function(id) {
-            if (!isAdmin && !ownPhotoIds.has(Number(id))) return alert('Удалять можно только свои фото.');
+            const photo = allPhotos.find(p => String(p.id) === String(id));
+            const ownsPhoto = !!(authUser && (photo?.ownerUid === authUser.uid || (!photo?.ownerUid && ownPhotoIds.has(Number(id)))));
+            if (!isAdmin && !ownsPhoto) return alert('Удалять можно только свои фото.');
             if (!confirm('Удалить фото из галереи?')) return;
             try {
                 await db.ref('photos/' + id).remove();
@@ -1572,7 +1602,11 @@
             }
             clearInterval(authWait);
             firebase.auth().onAuthStateChanged(async user => {
+                authUser = user;
+                currentUser = user?.displayName || user?.email?.split('@')[0] || '';
                 isAdmin = false;
+                updateUserStatus();
+                if (document.getElementById('tab3').classList.contains('active')) renderCatalog();
                 if (user) {
                     try {
                         const token = await user.getIdToken();
@@ -1582,7 +1616,7 @@
                             body: JSON.stringify({action:'whoami'})
                         });
                         const result = await response.json();
-                        isAdmin = response.ok && result.isOwner === true;
+                        if (firebase.auth().currentUser?.uid === user.uid) isAdmin = response.ok && result.isOwner === true;
                     } catch (e) { console.warn('Проверка владельца:', e); }
                 }
                 updateUserStatus();
