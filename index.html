@@ -434,6 +434,7 @@
         .quick-actions .secondary:hover { background:#edf7f0; }
         /* Вход, темы и переключатели не нужны для обычной публикации. */
         .header-controls,.tab[data-tab="tab2"] { display:none; }
+        #userStatus { cursor:pointer; font-size:13px; background:#e8f3ec; color:#25674f; padding:7px 12px; }
         .gallery-item img { cursor:zoom-in; }
         .gallery-item .info { overflow-wrap:anywhere; }
         .broken-photo { display:none; min-height:180px; background:#f6f2ea; padding:25px; text-align:center; color:#735f4e; align-items:center; justify-content:center; }
@@ -478,8 +479,8 @@
                 </div>
                 <button class="lang-btn active" id="lang-ru" onclick="setLang('ru')">РУС</button>
                 <button class="lang-btn" id="lang-en" onclick="setLang('en')">ENG</button>
-                <span class="user-status" id="userStatus">👤 Гость</span>
             </div>
+            <span class="user-status" id="userStatus" title="Войти через Google">👤 Войти</span>
         </header>
 
         <!-- ВКЛАДКИ -->
