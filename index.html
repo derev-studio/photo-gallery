@@ -632,9 +632,9 @@
             messagingSenderId: "329094770221",
             appId: "1:329094770221:web:b9d076f195f968668212a4"
         };
-        // Уже используется нашим фоторедактором. Исходные файлы хранит Cloudinary.
-        const CLOUDINARY_CLOUD = 'i1lysqxk';
-        const CLOUDINARY_PRESET = 'kaktus';
+        // Снимки публикуются в ImgBB через защищённый Cloudflare Worker.
+        // Личный ключ ImgBB никогда не находится в исходном коде сайта.
+        const PHOTO_UPLOAD_WORKER = 'https://photo-ai-qwen.qerevv.workers.dev/';
 
         if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
         const db = firebase.database();
@@ -999,13 +999,13 @@
         window.switchTab = switchTab;
 
         // ===== ПУБЛИКАЦИЯ: ФОТО → ХРАНИЛИЩЕ → БАЗА =====
-        // Cloudinary Free принимает изображения до 10 МБ. Оригинал остаётся на устройстве.
+        // ImgBB принимает фотографии до 32 МБ. Маленькие файлы не пережимаем.
         async function prepareForUpload(file) {
-            const maxSize = 9.5 * 1048576;
+            const maxSize = 31 * 1048576;
             if (file.size <= maxSize) return file;
             uploadStatus.textContent = '⏳ Подготовка…';
             const bitmap = await createImageBitmap(file);
-            const maxEdge = 4200;
+            const maxEdge = 6000;
             const scale = Math.min(1, maxEdge / Math.max(bitmap.width, bitmap.height));
             const canvas = document.createElement('canvas');
             canvas.width = Math.round(bitmap.width * scale);
@@ -1021,13 +1021,14 @@
             throw new Error('Файл слишком большой. Попробуйте другое изображение или уменьшите его в редакторе.');
         }
 
-        function uploadToCloudinary(file, onProgress) {
+        function uploadToImgBB(file, googleToken, onProgress) {
             return new Promise((resolve, reject) => {
                 const data = new FormData();
-                data.append('file', file);
-                data.append('upload_preset', CLOUDINARY_PRESET);
+                data.append('action', 'imgbbUpload');
+                data.append('image', file, file.name);
                 const xhr = new XMLHttpRequest();
-                xhr.open('POST', `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`);
+                xhr.open('POST', PHOTO_UPLOAD_WORKER);
+                xhr.setRequestHeader('Authorization', 'Bearer ' + googleToken);
                 xhr.timeout = 120000;
                 xhr.upload.onprogress = e => { if (e.lengthComputable) onProgress(Math.round(e.loaded / e.total * 100)); };
                 xhr.onerror = () => reject(new Error('Связь с хранилищем прервалась. Проверьте интернет и попробуйте ещё раз.'));
@@ -1035,8 +1036,8 @@
                 xhr.onload = () => {
                     let response;
                     try { response = JSON.parse(xhr.responseText); } catch { response = {}; }
-                    if (xhr.status >= 200 && xhr.status < 300 && /^https:\/\//.test(response.secure_url||'')) resolve(response.secure_url);
-                    else reject(new Error(response.error?.message || 'Хранилище не приняло снимок. Попробуйте ещё раз.'));
+                    if (xhr.status >= 200 && xhr.status < 300 && response.storage === 'imgbb' && /^https:\/\//.test(response.url||'')) resolve(response.url);
+                    else reject(new Error(response.error || 'ImgBB не принял снимок. Попробуйте ещё раз.'));
                 };
                 xhr.send(data);
             });
@@ -1063,8 +1064,9 @@
             try {
                 if (!lastUploadedUrl) {
                     const file = await prepareForUpload(selectedFile);
+                    const googleToken = await account.getIdToken();
                     uploadStatus.textContent = '⏳ Загрузка: 0%';
-                    lastUploadedUrl = await uploadToCloudinary(file, percent => { uploadStatus.textContent = `⏳ Загрузка: ${percent}%`; });
+                    lastUploadedUrl = await uploadToImgBB(file, googleToken, percent => { uploadStatus.textContent = `⏳ Загрузка: ${percent}%`; });
                 }
                 uploadStatus.textContent = '⏳ Публикация…';
                 const photo = {
@@ -1073,6 +1075,7 @@
                     rubric: 'Другое',
                     author: currentAuthor,
                     ownerUid: account.uid,
+                    storage: 'imgbb',
                     filename: selectedFile.name,
                     bytes: selectedFile.size,
                     isPro: false,
