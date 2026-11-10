@@ -284,6 +284,20 @@
             display: block; cursor: pointer; background: #f2f6f4;
         }
 
+
+        /* Маленькие превью избранных фотографий, без перестановки общей ленты. */
+        .featured-section { margin:0 0 22px;padding:20px;border:1px solid #d9c99a;border-radius:22px;background:linear-gradient(135deg,#fffaf0,#f0f8f3); }
+        .featured-header { display:flex;align-items:baseline;justify-content:space-between;gap:8px 16px;flex-wrap:wrap;margin-bottom:14px; }
+        .featured-header h3 { margin:0;color:#635021;font-size:22px; }
+        .featured-header span { color:#6b746d;font-size:13px; }
+        .featured-grid { display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px; }
+        .featured-tile { display:block;min-width:0;overflow:hidden;padding:0;border:1px solid #e2e5d7;border-radius:16px;background:white;text-align:left;cursor:zoom-in;box-shadow:0 4px 14px rgba(44,55,35,.09);transition:transform .2s,box-shadow .2s; }
+        .featured-tile:hover { transform:translateY(-3px);box-shadow:0 8px 24px rgba(44,55,35,.16); }
+        .featured-tile:focus-visible { outline:3px solid #25674f;outline-offset:3px; }
+        .featured-tile img { display:block;width:100%;aspect-ratio:4/3;object-fit:cover;background:#e8eee9; }
+        .featured-tile .featured-author { display:block;padding:10px 11px;font-size:14px;font-weight:700;color:#234b3b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+        @media (max-width:650px) { .featured-grid { grid-template-columns:repeat(2,minmax(0,1fr));gap:9px; } .featured-section { padding:14px; } .featured-header h3 { font-size:20px; } }
+
         /* Ссылки на видео: файлы остаются на видеохостингах. */
         .video-publish { margin-top:28px; padding:20px; background:#f1f8f5; border:1px solid #cce1d5; border-radius:20px; }
         .video-publish h3 { margin:0 0 8px; font-size:21px; }
@@ -678,6 +692,7 @@
                 <div><strong>🎬 Обновление галереи!</strong><p>Теперь можно добавлять видео с YouTube, ВКонтакте и Dailymotion. Фотографии тоже на месте.</p></div>
                 <button type="button" onclick="switchTab('tab1');document.getElementById('video-publish-title').scrollIntoView({behavior:'smooth'})">📤 Добавить видео</button>
             </div>
+            <section id="featured-section" class="featured-section" aria-label="Лучшие кадры" hidden></section>
             <section class="gallery-discovery" aria-label="Выбор автора и раздела">
                 <h3>👥 Авторы</h3>
                 <div id="gallery-authors" class="gallery-people"></div>
@@ -1668,6 +1683,31 @@
             return x >= 11 && x <= 14 ? many : y === 1 ? one : y >= 2 && y <= 4 ? few : many;
         }
 
+        // Небольшая витрина лучших кадров: три работы Milaya mila и одна новая работа Александра.
+        // Показываем только публичные фото, данные и оригиналы остаются на своих местах.
+        const featuredPhotoIds = ['1794237815289','1794162628824','1794162382837','1794281260138'];
+        function renderFeaturedPhotos() {
+            const section = document.getElementById('featured-section');
+            const featured = featuredPhotoIds
+                .map(id => allPhotos.find(photo => String(photo.id) === id))
+                .filter(photo => photo && photo.mediaType !== 'video'
+                    && photo.rubric !== 'Жанр Ню' && /^https:\/\//.test(photo.img || ''));
+            section.hidden = !featured.length;
+            if (!featured.length) { section.innerHTML = ''; return; }
+            section.innerHTML =
+                '<div class="featured-header"><h3>✨ Лучшие кадры</h3><span>Нажмите на фото — откроется целиком</span></div>' +
+                '<div class="featured-grid">' +
+                featured.map(photo => {
+                    const safeUrl = escapeHtml(photo.img);
+                    const imageArg = encodeURIComponent(photo.img);
+                    const author = escapeHtml(photo.author || 'Автор');
+                    return `<button class="featured-tile" type="button" onclick="openLightbox(decodeURIComponent('${imageArg}'))" aria-label="Посмотреть работу автора ${author}">
+                        <img src="${safeUrl}" alt="Фотография автора ${author}" loading="eager">
+                        <span class="featured-author">${author}</span>
+                    </button>`;
+                }).join('') + '</div>';
+        }
+
         // Авторы доступны в начале страницы, даже если их снимки ниже по ленте.
         function renderAuthorPicker() {
             const visible = allPhotos.filter(p => p.rubric !== 'Жанр Ню' || document.getElementById('show-nude').checked);
@@ -1724,6 +1764,7 @@
             const editCaret = activeEditKey ? document.activeElement.selectionStart : null;
             const search = document.getElementById('search-input').value.toLowerCase();
             renderAuthorPicker();
+            renderFeaturedPhotos();
             let filtered = allPhotos.filter(p => p.rubric !== 'Жанр Ню' || document.getElementById('show-nude').checked);
 
             const profileBar = document.getElementById('author-profile-bar');
