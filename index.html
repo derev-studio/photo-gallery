@@ -1663,6 +1663,11 @@
         activeProfile = profileFromHash();
 
 
+        function pluralRu(n, one, few, many) {
+            const x = Math.abs(n) % 100, y = x % 10;
+            return x >= 11 && x <= 14 ? many : y === 1 ? one : y >= 2 && y <= 4 ? few : many;
+        }
+
         // Авторы доступны в начале страницы, даже если их снимки ниже по ленте.
         function renderAuthorPicker() {
             const visible = allPhotos.filter(p => p.rubric !== 'Жанр Ню' || document.getElementById('show-nude').checked);
@@ -1681,7 +1686,7 @@
             const currentKey = activeProfile ? (activeProfile.uid ? 'uid:' + activeProfile.uid : 'name:' + activeProfile.name) : '';
             let buttons = '<button class="author-quick' + (!activeProfile ? ' active' : '')
                 + '" type="button" onclick="exitAuthorProfile()"><span class="author-quick-icon">🌍</span><span>Все авторы<small>'
-                + authors.size + ' авторов</small></span></button>';
+                + authors.size + ' ' + pluralRu(authors.size,'автор','автора','авторов') + '</small></span></button>';
             [...authors.values()].sort((a,b)=>a.name.localeCompare(b.name,'ru')).forEach(person => {
                 const key = person.uid ? 'uid:' + person.uid : 'name:' + person.name;
                 const media = person.cover
@@ -1690,7 +1695,7 @@
                 buttons += '<button class="author-quick' + (currentKey === key ? ' active' : '')
                     + '" type="button" data-uid="' + escapeHtml(person.uid) + '" data-name="' + escapeHtml(person.name)
                     + '" onclick="showAuthorProfile(this.dataset.uid,this.dataset.name)">' + media
-                    + '<span>' + escapeHtml(person.name) + '<small>' + person.count + ' работ</small></span></button>';
+                    + '<span>' + escapeHtml(person.name) + '<small>' + person.count + ' ' + pluralRu(person.count,'работа','работы','работ') + '</small></span></button>';
             });
             document.getElementById('gallery-authors').innerHTML = buttons;
             const counts = {
@@ -1768,7 +1773,7 @@
                 const items = mediaFilter === 'all' && sortMode === 'date'
                     ? [...group.items].sort((a,b) => Number(b.mediaType === 'video') - Number(a.mediaType === 'video') || b.id - a.id)
                     : group.items;
-                html += `<div class="room-section author-room"><div class="room-title"><button class="author-profile-link" type="button" data-uid="${escapeHtml(group.uid)}" data-name="${escapeHtml(group.name)}" onclick="showAuthorProfile(this.dataset.uid,this.dataset.name)">👤 ${escapeHtml(group.name)} ↗</button><span class="author-count">${items.length} работ</span></div><div class="gallery-grid">`;
+                html += `<div class="room-section author-room"><div class="room-title"><button class="author-profile-link" type="button" data-uid="${escapeHtml(group.uid)}" data-name="${escapeHtml(group.name)}" onclick="showAuthorProfile(this.dataset.uid,this.dataset.name)">👤 ${escapeHtml(group.name)} ↗</button><span class="author-count">${items.length} ${pluralRu(items.length,'работа','работы','работ')}</span></div><div class="gallery-grid">`;
                 items.forEach(item => {
                     const isBanned = item.author === 'Александр Деревяшкин' && window._banned;
                     const comments = item.comments || [];
