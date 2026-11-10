@@ -7,9 +7,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5">
     <title>Умная галерея — Александр Деревяшкин</title>
-    <meta name="description" content="Галерея фотографий и искусства Александра Деревяшкина и его друзей. Посмотрите работы и легко опубликуйте свою фотографию.">
+    <meta name="description" content="Открытая галерея фотографий и видео Александра Деревяшкина и друзей. Смотрите новые работы разных авторов, публикуйте свои фото и добавляйте видео.">
     <meta property="og:title" content="Фотогалерея Александра Деревяшкина">
-    <meta property="og:description" content="Фотографии, искусство и творчество друзей. Добавить свой снимок можно за пару нажатий.">
+    <meta property="og:description" content="Фотографии и видео разных авторов — общая галерея, личные страницы и публикация новых работ.">
     <meta property="og:type" content="website">
     <link rel="canonical" href="https://derev-studio.github.io/photo-gallery/">
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -1768,12 +1768,19 @@
                 rooms.get(key).items.push(p);
             });
 
+            // Общая лента: все авторы рядом по дате; выбор автора остаётся отдельно.
+            const displayRooms = activeProfile ? [...rooms.values()] : [{
+                name: mediaFilter === 'video' ? '🎬 Все видео' : mediaFilter === 'photo' ? '🖼️ Все фотографии' : '🌍 Новые работы всех авторов',
+                uid: '', items: filtered, combined: true
+            }];
             let html = '';
-            for (const group of rooms.values()) {
-                const items = mediaFilter === 'all' && sortMode === 'date'
-                    ? [...group.items].sort((a,b) => Number(b.mediaType === 'video') - Number(a.mediaType === 'video') || b.id - a.id)
-                    : group.items;
-                html += `<div class="room-section author-room"><div class="room-title"><button class="author-profile-link" type="button" data-uid="${escapeHtml(group.uid)}" data-name="${escapeHtml(group.name)}" onclick="showAuthorProfile(this.dataset.uid,this.dataset.name)">👤 ${escapeHtml(group.name)} ↗</button><span class="author-count">${items.length} ${pluralRu(items.length,'работа','работы','работ')}</span></div><div class="gallery-grid">`;
+            for (const group of displayRooms) {
+                const items = group.items;
+                if (group.combined) {
+                    html += `<div class="room-section author-room"><div class="room-title"><span>${escapeHtml(group.name)}</span><span class="author-count">${items.length} ${pluralRu(items.length,'работа','работы','работ')}</span></div><div class="gallery-grid">`;
+                } else {
+                    html += `<div class="room-section author-room"><div class="room-title"><button class="author-profile-link" type="button" data-uid="${escapeHtml(group.uid)}" data-name="${escapeHtml(group.name)}" onclick="showAuthorProfile(this.dataset.uid,this.dataset.name)">👤 ${escapeHtml(group.name)} ↗</button><span class="author-count">${items.length} ${pluralRu(items.length,'работа','работы','работ')}</span></div><div class="gallery-grid">`;
+                }
                 items.forEach(item => {
                     const isBanned = item.author === 'Александр Деревяшкин' && window._banned;
                     const comments = item.comments || [];
