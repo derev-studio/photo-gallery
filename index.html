@@ -141,7 +141,9 @@
         .gallery-discovery {
             margin-bottom:18px; padding:16px; border:1px solid #dae5ed; border-radius:20px; background:#fff;
         }
-        .gallery-discovery h3 {margin:0 0 10px;font-size:20px;color:#1a2332;}
+        .gallery-discovery h3 {margin:0;font-size:20px;color:#1a2332;}
+        .gallery-discovery-heading {display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px;}
+        .copy-gallery-btn {border:1px solid #b5d6c2;border-radius:30px;background:#eaf7ee;color:#215d42;padding:9px 14px;font:inherit;font-weight:700;cursor:pointer;}
         .gallery-people {display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px;}
         .author-quick {
             display:flex;align-items:center;gap:9px;max-width:100%;text-align:left;
@@ -617,7 +619,7 @@
             <span class="tab" data-tab="tab4">⭐ Избранное</span>
             <span class="tab" data-tab="tab5">💬 Чат</span>
             <span class="tab" data-tab="tab2">🤖 ИИ</span>
-            <a class="tab" href="editor-ai.html#galleryView" style="text-decoration:none;">👤 Мои работы</a>
+            <button class="tab" type="button" onclick="openMyWorksEditor()">👤 Мои работы</button>
             <a class="tab" href="editor.html" style="text-decoration:none;">🎨 Фоторедактор</a>
             <a class="tab" href="editor-ai.html" style="text-decoration:none;">✨ ИИ‑редактор</a>
         </div>
@@ -694,7 +696,7 @@
             </div>
             <section id="featured-section" class="featured-section" aria-label="Лучшие кадры" hidden></section>
             <section class="gallery-discovery" aria-label="Выбор автора и раздела">
-                <h3>👥 Авторы</h3>
+                <div class="gallery-discovery-heading"><h3>👥 Авторы</h3><button type="button" class="copy-gallery-btn" id="copy-gallery-btn" onclick="copyGalleryLink()">🔗 Скопировать ссылку</button></div>
                 <div id="gallery-authors" class="gallery-people"></div>
                 <div class="media-filters" role="group" aria-label="Выбор типа работ">
                     <button class="active" data-media="all" type="button" onclick="setMediaFilter('all')">🌍 Всё</button>
@@ -1657,25 +1659,45 @@
             } catch { /* Неверная ссылка не должна мешать галерее. */ }
             return null;
         }
+        // Убираем технические параметры из видимой ссылки: адрес галереи всегда чистый.
+        function cleanGalleryAddress() {
+            if (location.search || location.hash) history.replaceState(null, '', location.pathname);
+        }
+        window.openMyWorksEditor = function() {
+            sessionStorage.setItem('gallery_show_personal_works', '1');
+            location.href = 'editor-ai.html';
+        };
+        window.copyGalleryLink = async function() {
+            const url = location.origin + location.pathname;
+            const button = document.getElementById('copy-gallery-btn');
+            try {
+                await navigator.clipboard.writeText(url);
+                button.textContent = '✓ Ссылка скопирована';
+                setTimeout(() => { button.textContent = '🔗 Скопировать ссылку'; }, 2500);
+            } catch {
+                window.prompt('Скопируйте чистую ссылку:', url);
+            }
+        };
         window.showAuthorProfile = function(uid, name) {
             activeProfile = {uid: String(uid || ''), name: String(name || 'Автор')};
-            const key = activeProfile.uid ? 'uid:' + activeProfile.uid : 'name:' + activeProfile.name;
-            history.pushState(null, '', '#author=' + encodeURIComponent(key));
+            cleanGalleryAddress();
             document.getElementById('search-input').value = '';
             switchTab('tab3');
             window.scrollTo({top:0,behavior:'smooth'});
         };
         window.exitAuthorProfile = function() {
             activeProfile = null;
-            if (location.hash.startsWith('#author=')) history.pushState(null, '', location.pathname + location.search);
+            cleanGalleryAddress();
             renderCatalog();
         };
         window.addEventListener('hashchange', () => {
             activeProfile = profileFromHash();
+            cleanGalleryAddress();
             if (activeProfile) switchTab('tab3');
             else if (document.getElementById('tab3').classList.contains('active')) renderCatalog();
         });
         activeProfile = profileFromHash();
+        cleanGalleryAddress();
 
 
         function pluralRu(n, one, few, many) {
