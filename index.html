@@ -307,6 +307,11 @@
         .video-publish input { display:block; width:100%; max-width:720px; padding:13px 15px; margin:10px 0; border:1px solid #a5bfb0; border-radius:12px; font:inherit; }
         .video-publish .video-provider-links { display:flex; gap:14px; flex-wrap:wrap; margin:8px 0 16px; }
         .video-publish .video-provider-links a { color:#196348; font-size:14px; text-underline-offset:3px; }
+        .video-link-preview { max-width:720px; margin:14px 0 10px; border:1px solid #cce1d5; border-radius:16px; background:#fff; overflow:hidden; }
+        .video-link-preview[hidden] { display:none; }
+        .video-link-preview .video-media { width:100%; }
+        .video-preview-note { padding:12px 14px; margin:0!important; font-size:14px; color:#345746!important; }
+        .video-preview-warning { color:#895325!important; }
         .video-media { aspect-ratio:16/9; background:#172033; display:flex; flex-direction:column; justify-content:center; align-items:center; overflow:hidden; }
         .video-media iframe { display:block; width:100%; height:100%; border:0; }
         .video-external { gap:12px; padding:18px; text-align:center; color:white; }
@@ -649,7 +654,8 @@
                     <a href="https://www.dailymotion.com/" target="_blank" rel="noopener noreferrer">Dailymotion</a>
                 </div>
                 <input id="video-title" type="text" maxlength="120" placeholder="Название видео (необязательно)" aria-label="Название видео">
-                <input id="video-link" type="text" inputmode="url" placeholder="Ссылка на видео или код для вставки" aria-label="Ссылка на видео">
+                <input id="video-link" type="text" inputmode="url" placeholder="Вставьте ссылку — видео появится ниже" aria-label="Ссылка на видео">
+                <div id="video-link-preview" class="video-link-preview" aria-live="polite" hidden></div>
                 <button class="btn" id="video-publish-btn" type="button" onclick="publishVideoLink()">Опубликовать видео</button>
                 <p id="video-status" role="status" aria-live="polite"></p>
             </section>
@@ -1482,6 +1488,11 @@
         };
 
 
+        // Уже опубликованное видео ВКонтакте: автор прислал официальный код для встраивания.
+        // Для прочих VK-видео обычная ссылка может не содержать обязательный hash.
+        const knownVkVideoEmbeds = {
+            '-175786444_456239019': 'https://vkvideo.ru/video_ext.php?oid=-175786444&id=456239019&hash=90519240320680fb&hd=3'
+        };
         // Видео не загружаются на наш сервер. Принимаем только ссылки известных сервисов.
         function parseVideoLink(raw) {
             let value = String(raw || '').trim();
@@ -1510,8 +1521,8 @@
                 }
                 const hash = url.searchParams.get('hash') || '';
                 const embed = hash && /^[a-zA-Z0-9_-]{6,128}$/.test(hash)
-                    ? 'https://vkvideo.ru/video_ext.php?oid=' + oid + '&id=' + id + '&hash=' + hash
-                    : '';
+                    ? 'https://vkvideo.ru/video_ext.php?oid=' + oid + '&id=' + id + '&hash=' + hash + '&hd=3'
+                    : (knownVkVideoEmbeds[oid + '_' + id] || '');
                 return {provider:'ВКонтакте', url:'https://vkvideo.ru/video' + oid + '_' + id, embed};
             }
             if (['dailymotion.com','dai.ly','geo.dailymotion.com'].includes(host)) {
@@ -1540,13 +1551,37 @@
             const embed = escapeHtml(source.embed);
             if (source.embed) {
                 return '<div class="video-media"><iframe loading="lazy" src="' + embed
-                    + '" title="' + escapeHtml(item.title || 'Видео') + '" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>';
+                    + '" title="' + escapeHtml(item.title || 'Видео') + '" allow="autoplay; encrypted-media; fullscreen; picture-in-picture; screen-wake-lock" allowfullscreen></iframe></div>';
             }
             return '<div class="video-media video-external"><span style="font-size:40px;">🎬</span><span>'
                 + escapeHtml(item.title || source.provider) + '</span><a href="' + link
                 + '" target="_blank" rel="noopener noreferrer">▶ Смотреть на ' + escapeHtml(source.provider) + '</a></div>';
         }
 
+        // Предпросмотр появляется сам сразу после вставки ссылки — без дополнительных кнопок.
+        function updateVideoLinkPreview() {
+            const preview = document.getElementById('video-link-preview');
+            const raw = document.getElementById('video-link').value.trim();
+            const source = parseVideoLink(raw);
+            if (!raw) {
+                preview.hidden = true;
+                preview.innerHTML = '';
+                return;
+            }
+            preview.hidden = false;
+            if (!source) {
+                preview.innerHTML = '<p class="video-preview-note video-preview-warning">Пока не удалось распознать ссылку. Вставьте адрес видео.</p>';
+                return;
+            }
+            const title = document.getElementById('video-title').value.trim() || source.provider;
+            const note = source.embed
+                ? '✅ Видео готово. Нажмите «Опубликовать видео».'
+                : 'Видео откроется на ' + escapeHtml(source.provider) + '. Для просмотра прямо в галерее вставьте код видео из меню «Поделиться».';
+            preview.innerHTML = renderVideoMedia({videoUrl: source.url, videoEmbed: source.embed, title})
+                + '<p class="video-preview-note' + (source.embed ? '' : ' video-preview-warning') + '">' + note + '</p>';
+        }
+        document.getElementById('video-link').addEventListener('input', updateVideoLinkPreview);
+        document.getElementById('video-title').addEventListener('input', updateVideoLinkPreview);
         window.publishVideoLink = async function() {
             const linkInput = document.getElementById('video-link');
             const titleInput = document.getElementById('video-title');
@@ -1590,6 +1625,7 @@
                 });
                 titleInput.value = '';
                 linkInput.value = '';
+                updateVideoLinkPreview();
                 status.textContent = '✅ Видео опубликовано!';
                 switchTab('tab3');
                 renderCatalog();
