@@ -22,7 +22,10 @@ button:disabled{cursor:wait;opacity:.6}
 .controls{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:14px 0}
 #grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,310px),1fr));gap:17px}
 .card{background:white;border:1px solid #dce5dd;border-radius:20px;overflow:hidden;box-shadow:0 5px 16px rgba(18,53,36,.06)}
-.card>img{display:block;width:100%;aspect-ratio:4/3;object-fit:contain;background:#e9f0ed}
+.card>img{display:block;width:100%;aspect-ratio:4/3;object-fit:contain;background:#e9f0ed;cursor:zoom-in}
+dialog{border:0;border-radius:16px;padding:14px;max-width:98vw;max-height:98vh;background:#15231d;color:#fff}
+dialog::backdrop{background:rgba(0,0,0,.88)}dialog img{max-width:94vw;max-height:85vh;object-fit:contain;display:block;margin:10px auto}
+dialog button{float:right}
 .card-body{padding:16px}.author{font-weight:750;margin:0 0 8px}.stats{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
 .human{color:#174b8f;font-weight:700}.robot{border-top:1px solid #e8eee9;padding-top:11px;margin-top:11px}
 .robot-row{display:flex;gap:8px;align-items:start;margin:8px 0;line-height:1.4}
@@ -47,6 +50,7 @@ button:disabled{cursor:wait;opacity:.6}
 <div class="controls"><span id="total" class="muted">Загружаю фотографии…</span><label>Порядок: <select id="sort"><option value="date">Новые</option><option value="score">По оценке людей</option><option value="votes">По числу голосов</option></select></label></div>
 <div id="status" role="status" aria-live="polite"></div>
 <div id="grid"></div>
+<dialog id="viewer" aria-label="Просмотр фотографии"><button type="button" id="close-viewer">✕ Закрыть</button><img alt="Фотография крупно"></dialog>
 </main>
 <script>
 const cfg={apiKey:'AIzaSyB2X3o7KwYFkMfsskKoWpQYBrws8L-Mn9w',authDomain:'photo-gallery-18193.firebaseapp.com',projectId:'photo-gallery-18193',databaseURL:'https://photo-gallery-18193-default-rtdb.firebaseio.com',storageBucket:'photo-gallery-18193.firebasestorage.app',messagingSenderId:'329094770221',appId:'1:329094770221:web:b9d076f195f968668212a4'};
@@ -62,9 +66,9 @@ function render(){
  const sort=document.getElementById('sort').value;
  const list=photos.filter(p=>p&&p.mediaType!=='video'&&p.rubric!=='Жанр Ню'&&/^https:\/\//.test(p.img||''));
  if(sort==='date')list.sort((a,b)=>Number(b.id)-Number(a.id));
- if(sort==='score')list.sort((a,b)=>Number(mean(humanScores(b))) - Number(mean(humanScores(a))) || humanScores(b).length-humanScores(a).length);
+ if(sort==='score')list.sort((a,b)=>(humanScores(b).length?Number(mean(humanScores(b))):-1)-(humanScores(a).length?Number(mean(humanScores(a))):-1)||humanScores(b).length-humanScores(a).length);
  if(sort==='votes')list.sort((a,b)=>humanScores(b).length-humanScores(a).length);
- document.getElementById('total').textContent=list.length+' фотографий для голосования';
+ document.getElementById('total').textContent=list.length+' '+(list.length%100>=11&&list.length%100<=14?'фотографий':list.length%10===1?'фотография':[2,3,4].includes(list.length%10)?'фотографии':'фотографий')+' для голосования';
  if(!list.length){grid.innerHTML='<div class="empty">Фотографии ещё загружаются или пока отсутствуют.</div>';return;}
  grid.innerHTML=list.map(p=>{
   const scores=humanScores(p),self=p.juryVotes?.people?.[user?.uid]||null;
@@ -92,7 +96,9 @@ auth.onAuthStateChanged(async u=>{
 });
 db.ref('photos').on('value',snap=>{const data=snap.val();photos=data?Object.values(data):[];render();},err=>signal('Не удалось загрузить фотографии: '+err.message,true));
 document.getElementById('sort').addEventListener('change',render);
+document.getElementById('close-viewer').addEventListener('click',()=>document.getElementById('viewer').close());
 grid.addEventListener('click',async event=>{
+ if(event.target.matches('.card img')){const viewer=document.getElementById('viewer');viewer.querySelector('img').src=event.target.src;viewer.showModal();return;}
  const rate=event.target.closest('[data-rate]');
  if(rate){
   const account=await signIn();if(!account)return;
