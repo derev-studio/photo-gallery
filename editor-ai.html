@@ -18,7 +18,7 @@
 <div class="wrap">
 <div id="loginNote" class="login-note">Чтобы пользоваться редактором и личной галереей, войдите через Google.</div>
 <div class="privacy-note">Личные работы не показываются в общей галерее.</div>
-<div class="tabs"><button class="tab active" data-v="editView">Редактор</button><button class="tab" data-v="genView">Генератор</button><button class="tab" data-v="galleryView">👤 Мои работы</button><button class="tab" onclick="location.href='index.html'">🌍 Общая галерея</button></div>
+<div class="tabs"><button class="tab active" data-v="editView">Редактор</button><button class="tab" data-v="genView">Генератор</button><button class="tab" data-v="galleryView">👤 Мои работы</button><button class="tab" onclick="location.href='./'">🌍 Общая галерея</button></div>
 
 <div id="editView" class="view active"><div class="grid"><aside class="card side">
 <div class="sec"><h2>1. Фото</h2><div class="sub">Загрузи фотографию для редактирования.</div><div id="drop" class="drop">Перетащи фото сюда<br><b>или нажми</b></div><input id="file" type="file" accept="image/*" hidden></div>
@@ -35,7 +35,7 @@
 </aside><main class="card stage"><section class="pane"><h3>Результат</h3><div id="genBox" class="imgbox"><div class="empty">Здесь появится созданная картинка</div></div></section></main></div></div>
 
 <div id="galleryView" class="view"><div class="card stage">
-<div class="toolbar"><div><h2 style="margin:0">👤 Мои работы</h2><div class="sub">Загрузи один раз: только себе или одновременно себе и в общую галерею.</div></div><div class="toolbar-actions"><button id="addMine" class="primary">🔒 Только себе</button><button id="addPublicMine" class="publish">🌍 Добавить в обе галереи</button><button id="migrateOld">Перенести старые</button></div></div>
+<div class="toolbar"><div><h2 style="margin:0">👤 Мои работы</h2><div class="sub">Личные работы и все твои опубликованные фотографии, в том числе из старой галереи.</div><div class="small" id="mineCount" aria-live="polite"></div></div><div class="toolbar-actions"><button id="addMine" class="primary">🔒 Только себе</button><button id="addPublicMine" class="publish">🌍 Добавить в обе галереи</button><button id="migrateOld">Перенести старые</button></div></div>
 <div id="importBox" class="importbox">📷 <b>Нажми сюда и выбери фотографии</b><div class="small">Можно выбрать сразу несколько файлов. Они останутся в «Моих работах» и не попадут в общую галерею сами.</div></div>
 <input id="mineFiles" type="file" accept="image/*" multiple hidden>
 <input id="publicMineFiles" type="file" accept="image/*" multiple hidden>
@@ -52,10 +52,12 @@ const API_ENDPOINT='https://photo-ai-qwen.qerevv.workers.dev/';let sourceData=''
 function st(el,t,type=''){el.textContent=t;el.className='status show '+type}
 function oldGalleryKey(){return'ai_gallery_'+(currentUser?.uid||'guest')}
 function personalRef(){return currentUser?db.ref('users/'+currentUser.uid+'/works'):null}
+const ownerOldNames = new Set(['Александр Деревяшкин','Сашка Деревяшкин']);
 function myWorks(){
   if(!currentUser)return [];
   const linked=new Set(privateWorks.filter(w=>w.published).map(w=>String(w.publicId||w.id)));
-  const extra=publishedPhotos.filter(p=>p.ownerUid===currentUser.uid&&!linked.has(String(p.id))).map(p=>({
+  const extra=publishedPhotos.filter(p=>(p.ownerUid===currentUser.uid
+    || (isOwner && ownerOldNames.has(p.author||'')))&&!linked.has(String(p.id))).map(p=>({
     id:p.id,url:p.mediaType==='video'?p.videoUrl:p.img,
     videoUrl:p.mediaType==='video'?p.videoUrl:'',mediaType:p.mediaType||'photo',
     mode:p.mediaType==='video'?'Видео':'Моё фото',model:'',
@@ -89,13 +91,13 @@ auth.onAuthStateChanged(async user=>{
     worksListener.on('value',snap=>{const v=snap.val()||{};privateWorks=Object.values(v).sort((a,b)=>(b.id||0)-(a.id||0));drawGallery()});
     // Показываем здесь и старые публичные фото этого аккаунта, без копирования и повторной загрузки.
     publicListener=db.ref('photos');
-    publicListener.on('value',snap=>{publishedPhotos=Object.values(snap.val()||{}).filter(p=>p.ownerUid===user.uid);drawGallery()});
+    publicListener.on('value',snap=>{publishedPhotos=Object.values(snap.val()||{}).filter(p=>p.ownerUid===user.uid||ownerOldNames.has(p.author||''));drawGallery()});
     try{
       const token=await user.getIdToken();
       const r=await fetch(API_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({action:'whoami'})});
       const j=await r.json();
       if(r.ok&&j.isOwner){
-        isOwner=true;addProModels();
+        isOwner=true;addProModels();drawGallery();
         $('editBadge').textContent='👑 Владельцу доступен Qwen 3.0 Pro';
         $('genBadge').textContent='👑 Владельцу доступен Qwen 3.0 Pro';
         $('editBadge').classList.add('probadge');$('genBadge').classList.add('probadge');
@@ -153,8 +155,10 @@ async function publishWork(id){
 }window.publishWork=publishWork;
 function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function drawGallery(){
-  if(!currentUser){$('gallery').innerHTML='<div class="empty">Войдите через Google, чтобы открыть «Мои работы».</div>';return}
+  if(!currentUser){$('gallery').innerHTML='<div class="empty">Войдите через Google, чтобы открыть «Мои работы».</div>';$('mineCount').textContent='';return}
   const works=myWorks();
+  const personal=works.filter(w=>!w.published).length;
+  $('mineCount').textContent='Всего: '+works.length+' · Опубликовано: '+(works.length-personal)+' · Личное: '+personal;
   $('gallery').innerHTML=works.length?works.map(x=>{
     const video=x.mediaType==='video';
     const media=video?'<div class="video-thumb">🎬</div>':'<img src="'+esc(x.url)+'">';
@@ -203,6 +207,10 @@ $('addMine').onclick=()=>$('mineFiles').click();$('importBox').onclick=()=>$('mi
 $('addPublicMine').onclick=()=>$('publicMineFiles').click();$('publicMineFiles').onchange=e=>importMine(e.target.files,true);
 ['dragenter','dragover'].forEach(v=>$('importBox').addEventListener(v,e=>{e.preventDefault();$('importBox').style.borderColor='#2563eb'}));['dragleave','drop'].forEach(v=>$('importBox').addEventListener(v,e=>{e.preventDefault();$('importBox').style.borderColor=''}));$('importBox').addEventListener('drop',e=>importMine(e.dataTransfer.files));
 $('migrateOld').onclick=async()=>{if(!currentUser)return alert('Сначала войдите через Google');const old=JSON.parse(localStorage.getItem(oldGalleryKey())||'[]');if(!old.length)return alert('Старых работ в этом браузере не найдено.');let n=0;for(const x of old){try{const id=x.id||Date.now()+n;const exists=await personalRef().child(String(id)).once('value');if(exists.exists())continue;const url=await makePrivateCopy(x.url);await personalRef().child(String(id)).set({id,url,mode:x.mode||'Работа',model:x.model||'',prompt:x.prompt||'',time:x.time||'',date:new Date().toLocaleDateString('ru-RU'),published:!!x.published,publicId:x.publicId||null,ownerName:currentUser.displayName||currentUser.email||'Пользователь'});n++}catch(e){console.warn(e)}}alert('Перенесено: '+n)};
-if(location.hash==='#galleryView')openView('galleryView');
+if(sessionStorage.getItem('gallery_show_personal_works')==='1'||location.hash==='#galleryView'){
+  sessionStorage.removeItem('gallery_show_personal_works');
+  openView('galleryView');
+  if(location.hash)history.replaceState(null,'',location.pathname);
+}
 </script>
 </body></html>
