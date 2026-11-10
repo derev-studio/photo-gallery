@@ -17,7 +17,7 @@ export default {
 
     if (request.method === 'OPTIONS') return new Response(null, { headers: cors });
     if (request.method === 'GET' && new URL(request.url).pathname === '/health') {
-      return json({ ok: true, robotReview: 'qwen3-vl-flash' }, 200, cors);
+      return json({ ok: true, robotReview: 'qwen3-vl-flash', juryVote: true }, 200, cors);
     }
     if (request.method !== 'POST') return json({ error: 'POST only' }, 405, cors);
 
@@ -44,6 +44,12 @@ export default {
       const body = await request.json();
       if (body.action === 'whoami') {
         return json({ ok: true, isOwner, name: user.displayName || '', email: user.email || '' }, 200, cors);
+      }
+
+      if (body.action === 'juryVote') {
+        if (origin !== 'https://derev-studio.github.io') return json({ error: 'Недопустимый источник' }, 403, cors);
+        if (!isOwner) return json({ error: 'Оценки роботов запускает только владелец' }, 403, cors);
+        return handleJuryVote(body, env, cors);
       }
 
       // GitHub bridge for Irina admin. The PAT stays only in Cloudflare Secret.
@@ -172,6 +178,55 @@ export default {
     }
   }
 };
+
+async function handleJuryVote(body, env, cors) {
+  if (!env.QWEN_API_KEY) return json({ error: 'Роботы пока не подключены' }, 503, cors);
+  let imageUrl;
+  try {
+    imageUrl = new URL(String(body.imageUrl || ''));
+  } catch { return json({ error: 'У фотографии неверная ссылка' }, 400, cors); }
+  const host = imageUrl.hostname.toLowerCase();
+  const allowed = ['i.ibb.co', 'ibb.co', 'res.cloudinary.com', 'images.unsplash.com', 'i.imgur.com', 'firebasestorage.googleapis.com', 'storage.googleapis.com'];
+  if (imageUrl.protocol !== 'https:' || !allowed.includes(host) || imageUrl.toString().length > 1400 || imageUrl.username || imageUrl.password) {
+    return json({ error: 'Этот источник фотографии пока не поддерживается роботами' }, 400, cors);
+  }
+  const requestBody = {
+    model: 'qwen3-vl-flash',
+    messages: [
+      {role: 'system', content: 'Ты оцениваешь художественную фотографию как два разных персонажа. Педант — строгая, внимательная женщина-фотокритик, оценивает композицию, свет и техническую точность. Циник — добрый ироничный мужчина-художник, оценивает настроение, сюжет и оригинальность. Каждый ставит независимую оценку от 1 до 5, где 5 — выдающийся кадр, 3 — хороший, но обычный. Напиши по одной честной, конкретной короткой причине на русском, без грубости. Если фотография недоступна или не видна, не выдумывай оценку, верни JSON с error. Ответ только JSON: {"pedant":{"score":число,"reason":"текст"},"cynic":{"score":число,"reason":"текст"}}.'},
+      {role: 'user', content: [
+        {type: 'image_url', image_url: {url: imageUrl.toString()}},
+        {type: 'text', text: 'Дайте два художественных голоса за реальное содержимое этой фотографии. Оценки людей к этому не относятся.'}
+      ]}
+    ],
+    response_format: {type:'json_object'},
+    temperature: 0.5,
+    max_tokens: 330,
+    enable_thinking: false
+  };
+  try {
+    const response = await fetch('https://ws-jhgwe40j4chzmyh2.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1/chat/completions', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json', 'Authorization':'Bearer ' + env.QWEN_API_KEY},
+      body: JSON.stringify(requestBody)
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) return json({error:data?.error?.message || 'Модель не приняла фотографию'},502,cors);
+    const answer = data?.choices?.[0]?.message?.content;
+    const raw = typeof answer === 'string' ? answer : Array.isArray(answer) ? answer.map(part=>part.text||'').join('') : '';
+    let result;
+    try { result = JSON.parse(raw.match(/\{[\s\S]*\}/)?.[0] || ''); }
+    catch { return json({error:'ИИ не вернул оценки'},502,cors); }
+    const normalize = x => {
+      const score = Number(x?.score);
+      if (!Number.isInteger(score) || score < 1 || score > 5 || typeof x?.reason !== 'string' || !x.reason.trim()) return null;
+      return {score,reason:x.reason.trim().slice(0,260)};
+    };
+    const pedant=normalize(result.pedant),cynic=normalize(result.cynic);
+    if (!pedant || !cynic) return json({error:'ИИ не смог оценить эту фотографию'},502,cors);
+    return json({ok:true,pedant,cynic},200,cors);
+  } catch(e) {return json({error:'Не удалось связаться с роботами: '+(e?.message||'сбой сети')},502,cors);}
+}
 
 async function handleRobotReview(body, env, cors) {
   if (!env.QWEN_API_KEY) return json({ error: 'Ключ Qwen не настроен' }, 503, cors);
