@@ -128,6 +128,42 @@
         .tab.active { background: #1a2332; color: #fff; }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
+
+        /* Быстрая навигация по авторам и видам работ. */
+        .gallery-update {
+            display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:14px;
+            padding:16px 18px; border:1px solid #b9dacc; border-radius:18px;
+            background:linear-gradient(120deg,#edf8f2,#f6f8fc); margin-bottom:18px;
+        }
+        .gallery-update strong {display:block;font-size:18px;color:#194c36;margin-bottom:5px;}
+        .gallery-update p {margin:0;color:#466b5b;line-height:1.45;}
+        .gallery-update button {background:#25674f;color:white;border:0;border-radius:28px;padding:11px 17px;font:inherit;font-weight:700;cursor:pointer;}
+        .gallery-discovery {
+            margin-bottom:18px; padding:16px; border:1px solid #dae5ed; border-radius:20px; background:#fff;
+        }
+        .gallery-discovery h3 {margin:0 0 10px;font-size:20px;color:#1a2332;}
+        .gallery-people {display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px;}
+        .author-quick {
+            display:flex;align-items:center;gap:9px;max-width:100%;text-align:left;
+            border:1px solid #cbd5e1;border-radius:16px;background:#f8fafc;color:#233245;
+            padding:8px 13px 8px 8px;cursor:pointer;font:inherit;font-weight:700;
+        }
+        .author-quick img,.author-quick .author-quick-icon {
+            display:flex;align-items:center;justify-content:center;width:48px;height:48px;
+            border-radius:12px;object-fit:cover;background:#deede7;font-size:22px;flex:none;
+        }
+        .author-quick small {display:block;color:#607285;font-size:12px;font-weight:500;margin-top:2px;}
+        .author-quick.active {background:#e2f4e9;border:2px solid #25674f;padding:7px 12px 7px 7px;color:#15442f;}
+        .media-filters {display:flex;align-items:center;flex-wrap:wrap;gap:8px;border-top:1px solid #e5eaf0;padding-top:14px;}
+        .media-filters button {
+            border:1px solid #c7d5de;border-radius:28px;padding:10px 18px;
+            background:#f1f5f9;color:#1f3448;cursor:pointer;font:inherit;font-weight:700;
+        }
+        .media-filters button.active {background:#1a3a6b;border-color:#1a3a6b;color:#fff;}
+        @media(max-width:600px){
+            .gallery-people{flex-wrap:nowrap;overflow-x:auto;scroll-snap-type:x proximity;padding-bottom:6px;}
+            .author-quick{flex:0 0 auto;scroll-snap-align:start;}
+        }
         .author-profile-link { color:#245c75; background:transparent; border:0; padding:2px 0; font:inherit; font-weight:700; cursor:pointer; text-decoration:underline; text-underline-offset:3px; }
         .author-profile-link:hover { color:#14374d; }
 
@@ -562,8 +598,8 @@
 
         <!-- ВКЛАДКИ -->
         <div class="tabs">
-            <span class="tab active" data-tab="tab1">📤 Добавить</span>
-            <span class="tab" data-tab="tab3">🖼️ Галерея</span>
+            <span class="tab" data-tab="tab1">📤 Добавить</span>
+            <span class="tab active" data-tab="tab3">🖼️ Галерея</span>
             <span class="tab" data-tab="tab4">⭐ Избранное</span>
             <span class="tab" data-tab="tab5">💬 Чат</span>
             <span class="tab" data-tab="tab2">🤖 ИИ</span>
@@ -573,7 +609,7 @@
         </div>
 
         <!-- ВКЛАДКА 1 -->
-        <div class="tab-content active" id="tab1">
+        <div class="tab-content" id="tab1">
             <h2>Добавить фото</h2>
             <div class="upload-area" id="drop-area">
                 <div class="progress-bar" id="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
@@ -636,11 +672,25 @@
         </div>
 
         <!-- ВКЛАДКА 3 -->
-        <div class="tab-content" id="tab3">
+        <div class="tab-content active" id="tab3">
             <div id="gallery-success" role="status" style="display:none;background:#e7f6e9;border:1px solid #a1cfb1;color:#194e36;padding:16px;border-radius:17px;margin-bottom:16px;line-height:1.7;"></div>
+            <div class="gallery-update">
+                <div><strong>🎬 Обновление галереи!</strong><p>Теперь можно добавлять видео с YouTube, ВКонтакте и Dailymotion. Фотографии тоже на месте.</p></div>
+                <button type="button" onclick="switchTab('tab1');document.getElementById('video-publish-title').scrollIntoView({behavior:'smooth'})">📤 Добавить видео</button>
+            </div>
+            <section class="gallery-discovery" aria-label="Выбор автора и раздела">
+                <h3>👥 Авторы</h3>
+                <div id="gallery-authors" class="gallery-people"></div>
+                <div class="media-filters" role="group" aria-label="Выбор типа работ">
+                    <button class="active" data-media="all" type="button" onclick="setMediaFilter('all')">🌍 Всё</button>
+                    <button data-media="photo" type="button" onclick="setMediaFilter('photo')">🖼️ Фото</button>
+                    <button data-media="video" type="button" onclick="setMediaFilter('video')">🎬 Видео</button>
+                </div>
+            </section>
+
             <div id="author-profile-bar" style="display:none;background:#e8f4f6;border:1px solid #b7d5de;border-radius:18px;padding:18px;margin-bottom:18px;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
                 <div><h2 id="author-profile-name" style="margin:0 0 5px;">👤 Автор</h2><div id="author-profile-count" style="color:#546c78;"></div></div>
-                <button class="btn btn-sm" type="button" onclick="exitAuthorProfile()">← Все фотографии</button>
+                <button class="btn btn-sm" type="button" onclick="exitAuthorProfile()">← Все авторы</button>
             </div>
             <div style="background:rgba(212,175,55,0.08); border:1px solid #dfd8c7; border-radius:18px; padding:12px 16px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:20px;">
                 <h3 style="color:#806124;">Галерея</h3>
@@ -742,6 +792,7 @@
         let favorites = JSON.parse(localStorage.getItem('favs') || '[]');
         let currentLang = 'ru';
         let sortMode = 'date';
+        let mediaFilter = 'all';
         let currentUser = "";
         let nsfwModel = null;
         let sensitivityLevel = 2; // 1-3
@@ -1611,6 +1662,55 @@
         });
         activeProfile = profileFromHash();
 
+
+        // Авторы доступны в начале страницы, даже если их снимки ниже по ленте.
+        function renderAuthorPicker() {
+            const visible = allPhotos.filter(p => p.rubric !== 'Жанр Ню' || document.getElementById('show-nude').checked);
+            const identities = new Map();
+            visible.forEach(p => { if (p.ownerUid && !identities.has(p.author)) identities.set(p.author, p.ownerUid); });
+            const authors = new Map();
+            visible.forEach(p => {
+                const name = p.author || 'Автор';
+                const uid = p.ownerUid || identities.get(name) || '';
+                const key = uid ? 'uid:' + uid : 'name:' + name;
+                if (!authors.has(key)) authors.set(key, {uid,name,count:0,cover:''});
+                const person = authors.get(key);
+                person.count++;
+                if (!person.cover && p.mediaType !== 'video' && /^https:\/\//.test(p.img || '')) person.cover = p.img;
+            });
+            const currentKey = activeProfile ? (activeProfile.uid ? 'uid:' + activeProfile.uid : 'name:' + activeProfile.name) : '';
+            let buttons = '<button class="author-quick' + (!activeProfile ? ' active' : '')
+                + '" type="button" onclick="exitAuthorProfile()"><span class="author-quick-icon">🌍</span><span>Все авторы<small>'
+                + authors.size + ' авторов</small></span></button>';
+            [...authors.values()].sort((a,b)=>a.name.localeCompare(b.name,'ru')).forEach(person => {
+                const key = person.uid ? 'uid:' + person.uid : 'name:' + person.name;
+                const media = person.cover
+                    ? '<img src="' + escapeHtml(person.cover) + '" alt="" loading="lazy">'
+                    : '<span class="author-quick-icon">🎬</span>';
+                buttons += '<button class="author-quick' + (currentKey === key ? ' active' : '')
+                    + '" type="button" data-uid="' + escapeHtml(person.uid) + '" data-name="' + escapeHtml(person.name)
+                    + '" onclick="showAuthorProfile(this.dataset.uid,this.dataset.name)">' + media
+                    + '<span>' + escapeHtml(person.name) + '<small>' + person.count + ' работ</small></span></button>';
+            });
+            document.getElementById('gallery-authors').innerHTML = buttons;
+            const counts = {
+                all: visible.length,
+                photo: visible.filter(p=>p.mediaType!=='video').length,
+                video: visible.filter(p=>p.mediaType==='video').length
+            };
+            document.querySelectorAll('.media-filters button').forEach(button => {
+                const key = button.dataset.media;
+                button.classList.toggle('active',key===mediaFilter);
+                button.setAttribute('aria-pressed',String(key===mediaFilter));
+                button.textContent = (key==='all'?'🌍 Всё':key==='photo'?'🖼️ Фото':'🎬 Видео') + ' (' + counts[key] + ')';
+            });
+        }
+
+        window.setMediaFilter = function(value) {
+            mediaFilter = ['all','photo','video'].includes(value) ? value : 'all';
+            renderCatalog();
+        };
+
         window.renderCatalog = function() {
             const container = document.getElementById('catalog-container');
             const activePhoto = document.activeElement?.dataset?.commentPhoto;
@@ -1618,6 +1718,7 @@
             const activeEditKey = document.activeElement?.dataset?.editKey;
             const editCaret = activeEditKey ? document.activeElement.selectionStart : null;
             const search = document.getElementById('search-input').value.toLowerCase();
+            renderAuthorPicker();
             let filtered = allPhotos.filter(p => p.rubric !== 'Жанр Ню' || document.getElementById('show-nude').checked);
 
             const profileBar = document.getElementById('author-profile-bar');
@@ -1637,12 +1738,15 @@
                 );
             }
 
+            if (mediaFilter === 'video') filtered = filtered.filter(p => p.mediaType === 'video');
+            if (mediaFilter === 'photo') filtered = filtered.filter(p => p.mediaType !== 'video');
+
             if (sortMode === 'date') filtered.sort((a,b) => b.id - a.id);
             else if (sortMode === 'likes') filtered.sort((a,b) => (b.likes||0) - (a.likes||0));
             else if (sortMode === 'author') filtered.sort((a,b) => (a.author||'').localeCompare(b.author||''));
 
             if (!filtered.length) {
-                container.innerHTML = `<p style="text-align:center; color:#6b7a8f; padding:30px 0;">Пока нет работ.</p>`;
+                container.innerHTML = `<p style="text-align:center; color:#6b7a8f; padding:30px 0;">В этом разделе пока нет работ. Выберите «Всё» или другого автора выше.</p>`;
                 return;
             }
 
@@ -1661,7 +1765,9 @@
 
             let html = '';
             for (const group of rooms.values()) {
-                const items = group.items;
+                const items = mediaFilter === 'all' && sortMode === 'date'
+                    ? [...group.items].sort((a,b) => Number(b.mediaType === 'video') - Number(a.mediaType === 'video') || b.id - a.id)
+                    : group.items;
                 html += `<div class="room-section author-room"><div class="room-title"><button class="author-profile-link" type="button" data-uid="${escapeHtml(group.uid)}" data-name="${escapeHtml(group.name)}" onclick="showAuthorProfile(this.dataset.uid,this.dataset.name)">👤 ${escapeHtml(group.name)} ↗</button><span class="author-count">${items.length} работ</span></div><div class="gallery-grid">`;
                 items.forEach(item => {
                     const isBanned = item.author === 'Александр Деревяшкин' && window._banned;
