@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Голосование за фотографии — Галерея друзей</title>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<style>
+:root{color-scheme:light;font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif;color:#202a35;background:#f2f6f2}
+*{box-sizing:border-box}body{margin:0}.wrap{max-width:1250px;margin:auto;padding:18px}
+header{background:#fffdf7;border:1px solid #e4dfcf;border-radius:21px;padding:19px 22px;margin-bottom:18px}
+.nav{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+a{color:#195b45;text-underline-offset:3px}h1{font-size:clamp(24px,4vw,35px);margin:14px 0 8px}
+p{line-height:1.5}.muted{color:#617268;font-size:14px}
+.actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap}button,select{font:inherit}
+button{cursor:pointer;border:1px solid #c2d5cc;background:#fff;border-radius:13px;padding:10px 13px;color:#1d3c30}
+button:hover{background:#e8f3eb}button:focus-visible,a:focus-visible{outline:3px solid #226f54;outline-offset:2px}
+button:disabled{cursor:wait;opacity:.6}
+.login{background:#195b45;color:#fff;border-color:#195b45}.login:hover{background:#174a3a}
+.controls{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:14px 0}
+#grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,310px),1fr));gap:17px}
+.card{background:white;border:1px solid #dce5dd;border-radius:20px;overflow:hidden;box-shadow:0 5px 16px rgba(18,53,36,.06)}
+.card>img{display:block;width:100%;aspect-ratio:4/3;object-fit:contain;background:#e9f0ed}
+.card-body{padding:16px}.author{font-weight:750;margin:0 0 8px}.stats{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.human{color:#174b8f;font-weight:700}.robot{border-top:1px solid #e8eee9;padding-top:11px;margin-top:11px}
+.robot-row{display:flex;gap:8px;align-items:start;margin:8px 0;line-height:1.4}
+.robot-score{white-space:nowrap;font-weight:700;color:#745223}
+.rate{display:flex;gap:5px;flex-wrap:wrap;margin-top:9px}
+.rate button{border:1px solid #dacba7;background:#fffaf0;min-width:38px;font-size:16px;padding:7px}
+.rate button.selected{background:#d1a529;color:#1e241b;border-color:#b18b22;font-weight:800}
+.robot-action{margin-top:11px;border-color:#bfa6d7;color:#592b77}
+.status{padding:12px;border-radius:13px;background:#ecf6e9;color:#1e5738;margin:12px 0}
+.empty{text-align:center;padding:35px;background:white;border-radius:18px}
+@media(max-width:650px){.wrap{padding:9px}.card-body{padding:13px}header{padding:15px}}
+</style>
+</head>
+<body>
+<main class="wrap">
+<header>
+<div class="nav"><a href="./">← Вернуться в галерею</a><div class="actions"><button type="button" id="invite">🔗 Пригласить друзей</button><button id="login" class="login" type="button">👤 Войти через Google</button></div></div>
+<h1>🏆 Голосование за фотографии</h1>
+<p>Здесь оценивают настоящие посетители и два робота — <b>Педант</b> и <b>Циник</b>. Голоса людей и оценки ИИ считаются отдельно.</p>
+<p class="muted">Один Google-аккаунт — одна оценка каждой фотографии. Свою оценку можно изменить. Роботы оценивают только по запуску владельцем, никакие голоса не выдумываются.</p>
+</header>
+<div class="controls"><span id="total" class="muted">Загружаю фотографии…</span><label>Порядок: <select id="sort"><option value="date">Новые</option><option value="score">По оценке людей</option><option value="votes">По числу голосов</option></select></label></div>
+<div id="status" role="status" aria-live="polite"></div>
+<div id="grid"></div>
+</main>
+<script>
+const cfg={apiKey:'AIzaSyB2X3o7KwYFkMfsskKoWpQYBrws8L-Mn9w',authDomain:'photo-gallery-18193.firebaseapp.com',projectId:'photo-gallery-18193',databaseURL:'https://photo-gallery-18193-default-rtdb.firebaseio.com',storageBucket:'photo-gallery-18193.firebasestorage.app',messagingSenderId:'329094770221',appId:'1:329094770221:web:b9d076f195f968668212a4'};
+if(!firebase.apps.length)firebase.initializeApp(cfg);
+const auth=firebase.auth(),db=firebase.database(),worker='https://photo-ai-qwen.qerevv.workers.dev/';
+let user=null,isOwner=false,photos=[],busy=new Set();
+const grid=document.getElementById('grid'),status=document.getElementById('status');
+function safe(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function signal(s,error=false){status.textContent=s;status.className=s?(error?'status error':'status'):'';if(error)status.style.background='#fff0ed';else status.style.background='';}
+function humanScores(p){const votes=p?.juryVotes?.people||{};return Object.values(votes).map(v=>Number(v?.score)).filter(v=>v>=1&&v<=5);}
+function mean(s){return s.length?(s.reduce((a,b)=>a+b,0)/s.length).toFixed(1):'—';}
+function render(){
+ const sort=document.getElementById('sort').value;
+ const list=photos.filter(p=>p&&p.mediaType!=='video'&&p.rubric!=='Жанр Ню'&&/^https:\/\//.test(p.img||''));
+ if(sort==='date')list.sort((a,b)=>Number(b.id)-Number(a.id));
+ if(sort==='score')list.sort((a,b)=>Number(mean(humanScores(b))) - Number(mean(humanScores(a))) || humanScores(b).length-humanScores(a).length);
+ if(sort==='votes')list.sort((a,b)=>humanScores(b).length-humanScores(a).length);
+ document.getElementById('total').textContent=list.length+' фотографий для голосования';
+ if(!list.length){grid.innerHTML='<div class="empty">Фотографии ещё загружаются или пока отсутствуют.</div>';return;}
+ grid.innerHTML=list.map(p=>{
+  const scores=humanScores(p),self=p.juryVotes?.people?.[user?.uid]||null;
+  const bot=p.juryVotes?.robots||null;
+  const robotLine=(name,key)=>bot?.[key]&&Number(bot[key].score)>=1?'<div class="robot-row"><span class="robot-score">'+safe(name)+' '+safe(bot[key].score)+'/5</span><span>'+safe(bot[key].reason||'')+'</span></div>':'';
+  const stars=Array.from({length:5},(_,i)=>'<button type="button" class="'+(Number(self?.score)===i+1?'selected':'')+'" data-rate="'+safe(p.id)+'" data-score="'+(i+1)+'" aria-label="Поставить '+(i+1)+' из 5">'+(i+1)+' ★</button>').join('');
+  return '<article class="card" data-id="'+safe(p.id)+'"><img src="'+safe(p.img)+'" alt="Фотография автора '+safe(p.author||'Автор')+'" loading="lazy"><div class="card-body"><div class="author">'+safe(p.author||'Автор')+'</div><div class="stats"><span class="human">👥 Люди: '+mean(scores)+'/5</span><span class="muted">'+scores.length+' '+(scores.length===1?'голос':scores.length>=2&&scores.length<=4?'голоса':'голосов')+'</span></div><div class="muted">'+(user?(self?'Ваша оценка: '+safe(self.score)+'/5':'Выберите свою оценку:'):'Чтобы голосовать, войдите через Google.')+'</div><div class="rate">'+stars+'</div><div class="robot"><b>🤖 Голоса роботов</b>'+(bot?robotLine('Педант','pedant')+robotLine('Циник','cynic'):'<p class="muted">Роботы пока не оценили.</p>')+(isOwner?'<button class="robot-action" data-robot="'+safe(p.id)+'" '+(busy.has(String(p.id))?'disabled':'')+'>'+(busy.has(String(p.id))?'⏳ Роботы оценивают…':bot?'🔄 Переоценить роботами':'🤖 Запустить роботов')+'</button>':'')+'</div></div></article>';
+ }).join('');
+}
+async function signIn(){
+ if(auth.currentUser)return auth.currentUser;
+ try{const r=await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());return r.user;}
+ catch(e){if(e.code==='auth/popup-blocked'){await auth.signInWithRedirect(new firebase.auth.GoogleAuthProvider());return null;}if(e.code!=='auth/popup-closed-by-user')signal('Вход не выполнен: '+(e.message||''),true);return null;}
+}
+document.getElementById('invite').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(location.origin+location.pathname);signal('✅ Ссылка на голосование скопирована. Приглашай друзей.');}catch{window.prompt('Скопируйте ссылку на голосование:',location.origin+location.pathname);}});
+document.getElementById('login').addEventListener('click',async()=>{
+ if(user){if(confirm('Выйти из аккаунта Google?'))await auth.signOut();}
+ else await signIn();
+});
+auth.onAuthStateChanged(async u=>{
+ user=u;isOwner=false;
+ document.getElementById('login').textContent=u?'👤 '+(u.displayName||'Мой аккаунт'):'👤 Войти через Google';
+ render();
+ if(u){try{const token=await u.getIdToken();const r=await fetch(worker,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({action:'whoami'})});const j=await r.json();if(auth.currentUser?.uid===u.uid)isOwner=r.ok&&j.isOwner===true;}catch(e){console.warn('Проверка владельца:',e);}render();}
+});
+db.ref('photos').on('value',snap=>{const data=snap.val();photos=data?Object.values(data):[];render();},err=>signal('Не удалось загрузить фотографии: '+err.message,true));
+document.getElementById('sort').addEventListener('change',render);
+grid.addEventListener('click',async event=>{
+ const rate=event.target.closest('[data-rate]');
+ if(rate){
+  const account=await signIn();if(!account)return;
+  const id=String(rate.dataset.rate),score=Number(rate.dataset.score);
+  if(!/^\d+$/.test(id)||score<1||score>5)return;
+  rate.disabled=true;
+  try{
+   await db.ref('photos/'+id+'/juryVotes/people/'+account.uid).set({score,at:firebase.database.ServerValue.TIMESTAMP});
+   signal('✅ Ваш голос сохранён. Его можно изменить.');
+  }catch(e){signal('Не удалось сохранить голос: '+(e.message||'Проверьте права доступа.'),true);}
+  finally{rate.disabled=false;}
+  return;
+ }
+ const robot=event.target.closest('[data-robot]');
+ if(!robot||!user||!isOwner)return;
+ const id=String(robot.dataset.robot);
+ if(!/^\d+$/.test(id)||busy.has(id))return;
+ const p=photos.find(x=>String(x.id)===id);
+ if(!p)return;
+ if(!confirm('Попросить двух роботов оценить фотографию? Это один запрос к ИИ.'))return;
+ busy.add(id);render();signal('⏳ Роботы рассматривают фотографию…');
+ try{
+  const token=await user.getIdToken();
+  const res=await fetch(worker,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({action:'juryVote',imageUrl:p.img})});
+  const data=await res.json();
+  if(!res.ok||!data.pedant||!data.cynic)throw new Error(data.error||'Роботы не ответили');
+  await db.ref('photos/'+id+'/juryVotes/robots').set({pedant:data.pedant,cynic:data.cynic,at:firebase.database.ServerValue.TIMESTAMP});
+  signal('✅ Оценки Педанта и Циника сохранены.');
+ }catch(e){signal('Не удалось получить оценки роботов: '+e.message,true);}
+ finally{busy.delete(id);render();}
+});
+</script>
+</body>
+</html>
