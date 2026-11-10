@@ -314,6 +314,11 @@
         .video-preview-warning { color:#895325!important; }
         .video-media { aspect-ratio:16/9; background:#172033; display:flex; flex-direction:column; justify-content:center; align-items:center; overflow:hidden; }
         .video-media iframe { display:block; width:100%; height:100%; border:0; }
+        /* Для Dailymotion показываем настоящую обложку даже без платного Player ID. */
+        .video-poster { position:relative; display:block; width:100%; height:100%; background:#172033; color:#fff; text-decoration:none; }
+        .video-poster img { width:100%; height:100%; max-height:none; object-fit:cover; display:block; background:#172033; }
+        .video-play { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); display:flex; align-items:center; justify-content:center; width:72px; height:72px; border-radius:50%; background:rgba(0,0,0,.75); color:white; font-size:35px; padding-left:5px; box-shadow:0 3px 18px rgba(0,0,0,.3); }
+        .video-poster:hover .video-play, .video-poster:focus-visible .video-play { background:#246449; }
         .video-external { gap:12px; padding:18px; text-align:center; color:white; }
         .video-external a { display:inline-block; padding:11px 16px; border-radius:30px; background:white; color:#123b2b; font-weight:700; text-decoration:none; }
         .video-caption { font-weight:700; font-size:17px; padding:0 0 5px; overflow-wrap:anywhere; }
@@ -1553,6 +1558,15 @@
                 return '<div class="video-media"><iframe loading="lazy" src="' + embed
                     + '" title="' + escapeHtml(item.title || 'Видео') + '" allow="autoplay; encrypted-media; fullscreen; picture-in-picture; screen-wake-lock" allowfullscreen></iframe></div>';
             }
+            if (source.provider === 'Dailymotion') {
+                // Официальный адрес обложки перенаправляет на фотографию видео с dmcdn.net.
+                const videoId = source.url.split('/video/')[1];
+                const poster = 'https://www.dailymotion.com/thumbnail/video/' + videoId;
+                return '<div class="video-media"><a class="video-poster" href="' + link
+                    + '" target="_blank" rel="noopener noreferrer" aria-label="Смотреть видео на Dailymotion">'
+                    + '<img loading="lazy" src="' + escapeHtml(poster) + '" alt="' + escapeHtml(item.title || 'Видео Dailymotion')
+                    + '"><span class="video-play" aria-hidden="true">▶</span></a></div>';
+            }
             return '<div class="video-media video-external"><span style="font-size:40px;">🎬</span><span>'
                 + escapeHtml(item.title || source.provider) + '</span><a href="' + link
                 + '" target="_blank" rel="noopener noreferrer">▶ Смотреть на ' + escapeHtml(source.provider) + '</a></div>';
@@ -1574,11 +1588,11 @@
                 return;
             }
             const title = document.getElementById('video-title').value.trim() || source.provider;
-            const note = source.embed
-                ? '✅ Видео готово. Нажмите «Опубликовать видео».'
-                : 'Видео откроется на ' + escapeHtml(source.provider) + '. Для просмотра прямо в галерее вставьте код видео из меню «Поделиться».';
+            const note = source.embed || source.provider === 'Dailymotion'
+                ? '✅ Ссылка принята. Нажмите «Опубликовать видео».'
+                : '✅ Ссылка принята. Видео откроется на ' + escapeHtml(source.provider) + '.';
             preview.innerHTML = renderVideoMedia({videoUrl: source.url, videoEmbed: source.embed, title})
-                + '<p class="video-preview-note' + (source.embed ? '' : ' video-preview-warning') + '">' + note + '</p>';
+                + '<p class="video-preview-note' + (source.embed || source.provider === 'Dailymotion' ? '' : ' video-preview-warning') + '">' + note + '</p>';
         }
         document.getElementById('video-link').addEventListener('input', updateVideoLinkPreview);
         document.getElementById('video-title').addEventListener('input', updateVideoLinkPreview);
