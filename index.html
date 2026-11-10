@@ -567,7 +567,7 @@
             <span class="tab" data-tab="tab4">⭐ Избранное</span>
             <span class="tab" data-tab="tab5">💬 Чат</span>
             <span class="tab" data-tab="tab2">🤖 ИИ</span>
-            <a class="tab" href="editor-ai.html#galleryView" style="text-decoration:none;">👤 Мои фото</a>
+            <a class="tab" href="editor-ai.html#galleryView" style="text-decoration:none;">👤 Мои работы</a>
             <a class="tab" href="editor.html" style="text-decoration:none;">🎨 Фоторедактор</a>
             <a class="tab" href="editor-ai.html" style="text-decoration:none;">✨ ИИ‑редактор</a>
         </div>
@@ -1632,7 +1632,8 @@
             if (search) {
                 filtered = filtered.filter(p =>
                     (p.author || '').toLowerCase().includes(search) ||
-                    (p.rubric || '').toLowerCase().includes(search)
+                    (p.rubric || '').toLowerCase().includes(search) ||
+                    (p.title || '').toLowerCase().includes(search)
                 );
             }
 
@@ -1689,7 +1690,7 @@
                                     </div>
                                     <div style="display:flex; gap:4px;">
                                         <button class="icon-btn" onclick="toggleFav(${item.id})">${isFav ? '⭐' : '☆'}</button>
-                                        ${isVideo ? `<a class="icon-btn" href="${escapeHtml(item.videoUrl)}" target="_blank" rel="noopener noreferrer" title="Открыть видео">↗</a>` : `
+                                        ${isVideo ? `<a class="icon-btn" href="${escapeHtml(parseVideoLink(item.videoUrl)?.url || '#')}" target="_blank" rel="noopener noreferrer" title="Открыть видео">↗</a>` : `
                                         <button class="icon-btn" onclick="sharePhoto(decodeURIComponent('${imageArg}'))" title="Поделиться">📤</button>
                                         <button class="icon-btn" onclick="downloadPhoto(decodeURIComponent('${imageArg}'))" title="Скачать">📥</button>
                                         <button class="icon-btn" onclick="location.href='editor.html?image='+encodeURIComponent(decodeURIComponent('${imageArg}'))" title="Открыть в фоторедакторе">🎨</button>
@@ -1947,7 +1948,7 @@
                             <div style="font-size:12px; color:#6b7a8f;">${item.date || ''}</div>
                             <div style="display:flex; gap:8px; margin-top:8px;">
                                 <button class="icon-btn" onclick="toggleFav(${item.id})">⭐</button>
-                                ${item.mediaType === 'video' ? `<a class="icon-btn" href="${escapeHtml(item.videoUrl)}" target="_blank" rel="noopener noreferrer" title="Смотреть видео">↗</a>` : `<button class="icon-btn" onclick="sharePhoto(decodeURIComponent('${encodeURIComponent(item.img)}'))">📤</button>`}
+                                ${item.mediaType === 'video' ? `<a class="icon-btn" href="${escapeHtml(parseVideoLink(item.videoUrl)?.url || '#')}" target="_blank" rel="noopener noreferrer" title="Смотреть видео">↗</a>` : `<button class="icon-btn" onclick="sharePhoto(decodeURIComponent('${encodeURIComponent(item.img)}'))">📤</button>`}
                             </div>
                         </div>
                     </div>
