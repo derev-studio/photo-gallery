@@ -247,6 +247,20 @@
             width: 100%; max-height: 300px; object-fit: contain;
             display: block; cursor: pointer; background: #f2f6f4;
         }
+
+        /* Ссылки на видео: файлы остаются на видеохостингах. */
+        .video-publish { margin-top:28px; padding:20px; background:#f1f8f5; border:1px solid #cce1d5; border-radius:20px; }
+        .video-publish h3 { margin:0 0 8px; font-size:21px; }
+        .video-publish p { color:#526c60; margin:7px 0 14px; line-height:1.5; }
+        .video-publish input { display:block; width:100%; max-width:720px; padding:13px 15px; margin:10px 0; border:1px solid #a5bfb0; border-radius:12px; font:inherit; }
+        .video-publish .video-provider-links { display:flex; gap:14px; flex-wrap:wrap; margin:8px 0 16px; }
+        .video-publish .video-provider-links a { color:#196348; font-size:14px; text-underline-offset:3px; }
+        .video-media { aspect-ratio:16/9; background:#172033; display:flex; flex-direction:column; justify-content:center; align-items:center; overflow:hidden; }
+        .video-media iframe { display:block; width:100%; height:100%; border:0; }
+        .video-external { gap:12px; padding:18px; text-align:center; color:white; }
+        .video-external a { display:inline-block; padding:11px 16px; border-radius:30px; background:white; color:#123b2b; font-weight:700; text-decoration:none; }
+        .video-caption { font-weight:700; font-size:17px; padding:0 0 5px; overflow-wrap:anywhere; }
+        .video-platform { display:inline-block; margin-top:8px; font-size:12px; color:#54705f; font-weight:600; }
         .gallery-item .info { padding: 16px; background: #fff; }
         .action-bar {
             display: flex; flex-wrap: wrap; gap: 8px 12px;
@@ -574,6 +588,19 @@
             <div class="quick-actions">
                 <button class="btn" id="start-btn" onclick="goToStep3()" disabled>Опубликовать</button>
             </div>
+            <section class="video-publish" aria-labelledby="video-publish-title">
+                <h3 id="video-publish-title">🎬 Добавить видео</h3>
+                <p>Загрузите ролик на удобный видеосервис, затем вставьте ссылку. Место в нашей галерее не расходуется.</p>
+                <div class="video-provider-links">
+                    <a href="https://www.youtube.com/upload" target="_blank" rel="noopener noreferrer">YouTube</a>
+                    <a href="https://vkvideo.ru/" target="_blank" rel="noopener noreferrer">ВКонтакте</a>
+                    <a href="https://www.dailymotion.com/" target="_blank" rel="noopener noreferrer">Dailymotion</a>
+                </div>
+                <input id="video-title" type="text" maxlength="120" placeholder="Название видео (необязательно)" aria-label="Название видео">
+                <input id="video-link" type="text" inputmode="url" placeholder="Ссылка на видео или код для вставки" aria-label="Ссылка на видео">
+                <button class="btn" id="video-publish-btn" type="button" onclick="publishVideoLink()">Опубликовать видео</button>
+                <p id="video-status" role="status" aria-live="polite"></p>
+            </section>
         </div>
 
         <!-- ВКЛАДКА 2 -->
@@ -1386,6 +1413,126 @@
             }
         };
 
+
+        // Видео не загружаются на наш сервер. Принимаем только ссылки известных сервисов.
+        function parseVideoLink(raw) {
+            let value = String(raw || '').trim();
+            if (!value) return null;
+            const iframeSrc = value.match(/<iframe\b[^>]*\bsrc\s*=\s*["']([^"']+)["']/i);
+            if (iframeSrc) value = iframeSrc[1].replace(/&amp;/g, '&');
+            let url;
+            try { url = new URL(value); } catch { return null; }
+            if (url.protocol !== 'https:') return null;
+            const host = url.hostname.toLowerCase().replace(/^www\./, '');
+            const path = url.pathname;
+            if (['youtube.com','m.youtube.com','music.youtube.com','youtube-nocookie.com','youtu.be'].includes(host)) {
+                const id = host === 'youtu.be'
+                    ? path.split('/')[1]
+                    : (url.searchParams.get('v') || (path.match(/^\/(?:embed|shorts|live|v)\/([a-zA-Z0-9_-]+)/) || [])[1]);
+                if (!/^[a-zA-Z0-9_-]{11}$/.test(id || '')) return null;
+                return {provider:'YouTube', url:'https://www.youtube.com/watch?v=' + id, embed:'https://www.youtube-nocookie.com/embed/' + id};
+            }
+            if (['vk.com','m.vk.com','vkvideo.ru','vk.ru'].includes(host)) {
+                let oid = url.searchParams.get('oid');
+                let id = url.searchParams.get('id');
+                if (!/^-?\d+$/.test(oid || '') || !/^\d+$/.test(id || '')) {
+                    const match = (path + ' ' + (url.searchParams.get('z') || '')).match(/video(-?\d+)_(\d+)/);
+                    if (!match) return null;
+                    oid = match[1]; id = match[2];
+                }
+                const hash = url.searchParams.get('hash') || '';
+                const embed = hash && /^[a-zA-Z0-9_-]{6,128}$/.test(hash)
+                    ? 'https://vkvideo.ru/video_ext.php?oid=' + oid + '&id=' + id + '&hash=' + hash
+                    : '';
+                return {provider:'ВКонтакте', url:'https://vkvideo.ru/video' + oid + '_' + id, embed};
+            }
+            if (['dailymotion.com','dai.ly','geo.dailymotion.com'].includes(host)) {
+                let id = host === 'dai.ly'
+                    ? path.split('/')[1]
+                    : (path.match(/^\/video\/([a-zA-Z0-9]+)/) || [])[1];
+                let embed = '';
+                if (host === 'geo.dailymotion.com') {
+                    const match = path.match(/^\/player\/([a-zA-Z0-9_-]+)\.html$/);
+                    id = url.searchParams.get('video');
+                    if (match && /^[a-zA-Z0-9]+$/.test(id || '')) {
+                        embed = 'https://geo.dailymotion.com/player/' + match[1] + '.html?video=' + id;
+                    }
+                }
+                if (!/^[a-zA-Z0-9]+$/.test(id || '')) return null;
+                // С 2026 года Dailymotion требует ID плеера для вставки.
+                return {provider:'Dailymotion', url:'https://www.dailymotion.com/video/' + id, embed};
+            }
+            return null;
+        }
+
+        function renderVideoMedia(item) {
+            const source = parseVideoLink(item.videoEmbed || item.videoUrl);
+            if (!source) return '<div class="video-media video-external">🎬 Видео недоступно</div>';
+            const link = escapeHtml(source.url);
+            const embed = escapeHtml(source.embed);
+            if (source.embed) {
+                return '<div class="video-media"><iframe loading="lazy" src="' + embed
+                    + '" title="' + escapeHtml(item.title || 'Видео') + '" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>';
+            }
+            return '<div class="video-media video-external"><span style="font-size:40px;">🎬</span><span>'
+                + escapeHtml(item.title || source.provider) + '</span><a href="' + link
+                + '" target="_blank" rel="noopener noreferrer">▶ Смотреть на ' + escapeHtml(source.provider) + '</a></div>';
+        }
+
+        window.publishVideoLink = async function() {
+            const linkInput = document.getElementById('video-link');
+            const titleInput = document.getElementById('video-title');
+            const button = document.getElementById('video-publish-btn');
+            const status = document.getElementById('video-status');
+            const parsed = parseVideoLink(linkInput.value);
+            if (!parsed) {
+                status.textContent = 'Укажите ссылку на видео YouTube, ВКонтакте или Dailymotion.';
+                return;
+            }
+            const account = await ensureGoogleUser();
+            if (!account) {
+                status.textContent = 'Войдите через Google для публикации.';
+                return;
+            }
+            if (allPhotos.some(p => p.mediaType === 'video' && p.ownerUid === account.uid && p.videoUrl === parsed.url)) {
+                status.textContent = '✅ Это видео уже есть в вашей галерее.';
+                switchTab('tab3');
+                return;
+            }
+            button.disabled = true;
+            status.textContent = '⏳ Публикация…';
+            try {
+                const id = Date.now();
+                const author = account.displayName || account.email?.split('@')[0] || 'Участник';
+                const title = titleInput.value.trim().slice(0, 120) || 'Видео';
+                const video = {
+                    id, mediaType:'video', title, videoProvider:parsed.provider,
+                    videoUrl:parsed.url, videoEmbed:parsed.embed, rubric:'Видео',
+                    author, ownerUid:account.uid, likes:0, dislikes:0, superLikes:0,
+                    isPro:false, date:new Date().toLocaleDateString('ru-RU'), comments:[]
+                };
+                const personal = {
+                    id, mode:'Видео', mediaType:'video', videoUrl:parsed.url, title,
+                    time:new Date().toLocaleString('ru-RU'), date:video.date,
+                    published:true, publicId:id, ownerName:author
+                };
+                await db.ref().update({
+                    ['photos/' + id]: video,
+                    ['users/' + account.uid + '/works/' + id]: personal
+                });
+                titleInput.value = '';
+                linkInput.value = '';
+                status.textContent = '✅ Видео опубликовано!';
+                switchTab('tab3');
+                renderCatalog();
+                window.scrollTo({top:0,behavior:'smooth'});
+            } catch (e) {
+                status.textContent = 'Не получилось опубликовать: ' + (e.message || 'Попробуйте ещё раз.');
+            } finally {
+                button.disabled = false;
+            }
+        };
+
         function updatePiastres() {
             document.getElementById('total-piastres-display').textContent = allPhotos.length + ' работ';
         }
@@ -1494,7 +1641,7 @@
             else if (sortMode === 'author') filtered.sort((a,b) => (a.author||'').localeCompare(b.author||''));
 
             if (!filtered.length) {
-                container.innerHTML = `<p style="text-align:center; color:#6b7a8f; padding:30px 0;">Пока нет фото.</p>`;
+                container.innerHTML = `<p style="text-align:center; color:#6b7a8f; padding:30px 0;">Пока нет работ.</p>`;
                 return;
             }
 
@@ -1514,7 +1661,7 @@
             let html = '';
             for (const group of rooms.values()) {
                 const items = group.items;
-                html += `<div class="room-section author-room"><div class="room-title"><button class="author-profile-link" type="button" data-uid="${escapeHtml(group.uid)}" data-name="${escapeHtml(group.name)}" onclick="showAuthorProfile(this.dataset.uid,this.dataset.name)">👤 ${escapeHtml(group.name)} ↗</button><span class="author-count">${items.length} фото</span></div><div class="gallery-grid">`;
+                html += `<div class="room-section author-room"><div class="room-title"><button class="author-profile-link" type="button" data-uid="${escapeHtml(group.uid)}" data-name="${escapeHtml(group.name)}" onclick="showAuthorProfile(this.dataset.uid,this.dataset.name)">👤 ${escapeHtml(group.name)} ↗</button><span class="author-count">${items.length} работ</span></div><div class="gallery-grid">`;
                 items.forEach(item => {
                     const isBanned = item.author === 'Александр Деревяшкин' && window._banned;
                     const comments = item.comments || [];
@@ -1522,13 +1669,17 @@
                     const imageUrl = /^https:\/\//.test(item.img || '') ? item.img : '';
                     const safeImage = escapeHtml(imageUrl);
                     const imageArg = encodeURIComponent(imageUrl);
+                    const isVideo = item.mediaType === 'video';
                     html += `
                         <div class="gallery-item" id="photo-${item.id}">
+                            ${isVideo ? renderVideoMedia(item) : `
                             <img src="${safeImage}" loading="lazy" alt="Работа автора ${escapeHtml(item.author)}" onclick="openLightbox(decodeURIComponent('${imageArg}'))" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
                             <div class="broken-photo">Фото недоступно</div>
+                            `}
                             <div class="info">
                                 <div><button class="author author-profile-link" type="button" data-uid="${escapeHtml(item.ownerUid || '')}" data-name="${escapeHtml(item.author || 'Автор')}" onclick="showAuthorProfile(this.dataset.uid,this.dataset.name)" title="Открыть страницу автора">${escapeHtml(item.author || 'Автор')} ↗</button>${item.isPro ? '<span class="pro-badge">PRO</span>' : ''}${isBanned ? '<span class="banned-badge">БАН</span>' : ''}</div>
                                 <div class="date" style="font-size:12px; color:#6b7a8f; margin-top:4px;">${escapeHtml(item.date)}</div>
+                                ${isVideo ? `<div class="video-caption">${escapeHtml(item.title || 'Видео')}</div><span class="video-platform">🎬 ${escapeHtml(item.videoProvider || 'Видео')}</span>` : ''}
                                 ${item.rubric && item.rubric !== 'Другое' ? `<div class="photo-genre">🏷 ${escapeHtml(item.rubric)}</div>` : ''}
                                 <div class="action-bar">
                                     <div style="display:flex; gap:6px; flex-wrap:wrap;">
@@ -1538,11 +1689,13 @@
                                     </div>
                                     <div style="display:flex; gap:4px;">
                                         <button class="icon-btn" onclick="toggleFav(${item.id})">${isFav ? '⭐' : '☆'}</button>
+                                        ${isVideo ? `<a class="icon-btn" href="${escapeHtml(item.videoUrl)}" target="_blank" rel="noopener noreferrer" title="Открыть видео">↗</a>` : `
                                         <button class="icon-btn" onclick="sharePhoto(decodeURIComponent('${imageArg}'))" title="Поделиться">📤</button>
                                         <button class="icon-btn" onclick="downloadPhoto(decodeURIComponent('${imageArg}'))" title="Скачать">📥</button>
                                         <button class="icon-btn" onclick="location.href='editor.html?image='+encodeURIComponent(decodeURIComponent('${imageArg}'))" title="Открыть в фоторедакторе">🎨</button>
+                                        `}
                                         <button class="icon-btn" onclick="toggleComments(${item.id})" title="Комментарии">💬${comments.length ? ' ' + comments.length : ''}</button>
-                                        ${(isAdmin || (authUser && (item.ownerUid === authUser.uid || (!item.ownerUid && ownPhotoIds.has(Number(item.id)))))) ? `<button class="icon-btn" style="color:#b42318;" onclick="deletePhoto(${item.id})" title="Удалить своё фото" aria-label="Удалить фото">🗑️</button>` : ''}
+                                        ${(isAdmin || (authUser && (item.ownerUid === authUser.uid || (!item.ownerUid && ownPhotoIds.has(Number(item.id)))))) ? `<button class="icon-btn" style="color:#b42318;" onclick="deletePhoto(${item.id})" title="Удалить свою работу" aria-label="Удалить работу">🗑️</button>` : ''}
                                     </div>
                                 </div>
                                 <div class="comments-wrap" id="commentbox-${item.id}" style="${expandedComments.has(Number(item.id)) ? '' : 'display:none'}">
@@ -1788,13 +1941,13 @@
             favPhotos.forEach(item => {
                 html += `
                     <div class="gallery-item">
-                        <img src="${item.img}" onclick="openLightbox('${item.img}')">
+                        ${item.mediaType === 'video' ? renderVideoMedia(item) : `<img src="${escapeHtml(item.img)}" onclick="openLightbox(decodeURIComponent('${encodeURIComponent(item.img)}'))">`}
                         <div class="info">
                             <div><button class="author-profile-link" type="button" data-uid="${escapeHtml(item.ownerUid || '')}" data-name="${escapeHtml(item.author || 'Автор')}" onclick="showAuthorProfile(this.dataset.uid,this.dataset.name)">${escapeHtml(item.author || 'Автор')} ↗</button>${item.isPro ? '<span class="pro-badge">PRO</span>' : ''}</div>
                             <div style="font-size:12px; color:#6b7a8f;">${item.date || ''}</div>
                             <div style="display:flex; gap:8px; margin-top:8px;">
                                 <button class="icon-btn" onclick="toggleFav(${item.id})">⭐</button>
-                                <button class="icon-btn" onclick="sharePhoto('${item.img}')">📤</button>
+                                ${item.mediaType === 'video' ? `<a class="icon-btn" href="${escapeHtml(item.videoUrl)}" target="_blank" rel="noopener noreferrer" title="Смотреть видео">↗</a>` : `<button class="icon-btn" onclick="sharePhoto(decodeURIComponent('${encodeURIComponent(item.img)}'))">📤</button>`}
                             </div>
                         </div>
                     </div>
