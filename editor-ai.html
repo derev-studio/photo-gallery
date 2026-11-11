@@ -98,15 +98,15 @@ auth.onAuthStateChanged(async user=>{
       const j=await r.json();
       if(r.ok&&j.isOwner){
         isOwner=true;addProModels();drawGallery();
-        $('editBadge').textContent='👑 Владельцу доступен Qwen 3.0 Pro';
-        $('genBadge').textContent='👑 Владельцу доступен Qwen 3.0 Pro';
+        $('editBadge').textContent='✨ Доступна дополнительная модель';
+        $('genBadge').textContent='✨ Доступна дополнительная модель';
         $('editBadge').classList.add('probadge');$('genBadge').classList.add('probadge');
       }
     }catch(e){console.warn(e)}
   }else drawGallery();
 });
 function resetModels(){['editModel','genModel'].forEach(id=>{$(id).innerHTML='<option value="qwen-image-2.0">Qwen Image 2.0 — основной</option>'});['editBadge','genBadge'].forEach(id=>{$(id).textContent='Доступно всем вошедшим';$(id).classList.remove('probadge')})}
-function addProModels(){['editModel','genModel'].forEach(id=>{const o=document.createElement('option');o.value='qwen-image-3.0-pro';o.textContent='Qwen Image 3.0 Pro — только владелец';$(id).appendChild(o)})}
+function addProModels(){['editModel','genModel'].forEach(id=>{const o=document.createElement('option');o.value='qwen-image-3.0-pro';o.textContent='Qwen Image 3.0 Pro';$(id).appendChild(o)})}
 async function callAI(mode,model,prompt,image,statusEl){if(!currentUser)throw new Error('Сначала войдите через Google');st(statusEl,'AI работает…');const token=await currentUser.getIdToken();const r=await fetch(API_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({mode,model,prompt,image})});const j=await r.json();if(!r.ok||!j.url)throw new Error(j.error||'Ошибка AI');return j.url}
 async function uploadCloudinary(file){
   let blob=file;
