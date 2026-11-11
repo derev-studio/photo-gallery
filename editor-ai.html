@@ -29,7 +29,7 @@
 
 <div id="genView" class="view"><div class="grid"><aside class="card side">
 <div class="sec"><h2>Создать картинку</h2><div class="sub">Опиши изображение по-русски. Фото загружать не нужно.</div></div>
-<div class="sec"><h2>Модель</h2><select id="genModel"><option value="qwen-image-2.0">Qwen Image 2.0 — основной</option></select><div id="genBadge" class="badge">Доступно всем вошедшим</div></div>
+<div class="sec"><h2>Модель</h2><select id="genModel"><option value="qwen-image-2.0">Qwen Image 2.0 — основной</option></select><div id="genBadge" class="badge">Доступно всем вошедшим</div><div class="sub">Для участников — не более одного создания или редактирования в сутки.</div></div>
 <div class="sec"><textarea id="genPrompt" placeholder="Например: русалка на берегу моря, золотой вечерний свет, фотореализм"></textarea></div>
 <div class="sec"><button id="genRun" class="primary" style="width:100%">Сгенерировать</button><button id="genSave" class="best download">Скачать результат</button><div id="genStatus" class="status"></div></div>
 </aside><main class="card stage"><section class="pane"><h3>Результат</h3><div id="genBox" class="imgbox"><div class="empty">Здесь появится созданная картинка</div></div></section></main></div></div>
@@ -107,6 +107,23 @@ auth.onAuthStateChanged(async user=>{
 });
 function resetModels(){['editModel','genModel'].forEach(id=>{$(id).innerHTML='<option value="qwen-image-2.0">Qwen Image 2.0 — основной</option>'});['editBadge','genBadge'].forEach(id=>{$(id).textContent='Доступно всем вошедшим';$(id).classList.remove('probadge')})}
 function addProModels(){['editModel','genModel'].forEach(id=>{const o=document.createElement('option');o.value='qwen-image-3.0-pro';o.textContent='Qwen Image 3.0 Pro';$(id).appendChild(o)})}
+// Одна платная попытка в сутки для обычного участника, общая на генератор и редактор.
+// Транзакция уменьшает риск повторных запросов с нескольких устройств.
+// Полную защиту расходов обеспечивает только проверка лимита в Cloudflare Worker.
+async function reserveVisitorAIQuota(){
+    if(!currentUser)throw new Error('Сначала войдите через Google');
+    if(isOwner)return;
+    const day=new Date().toISOString().slice(0,10).replaceAll('-','');
+    const ref=db.ref('users/'+currentUser.uid+'/aiDailyQuota/'+day);
+    let result;
+    try{
+        result=await ref.transaction(value=>{
+            const count=Number(value)||0;
+            return count>=1 ? undefined : count+1;
+        },undefined,false);
+    }catch(e){throw new Error('Не удалось проверить дневной лимит. Попробуйте позже.')}
+    if(!result.committed)throw new Error('Дневной лимит — один запрос. Приходите завтра.');
+}
 async function callAI(mode,model,prompt,image,statusEl){if(!currentUser)throw new Error('Сначала войдите через Google');st(statusEl,'AI работает…');const token=await currentUser.getIdToken();const r=await fetch(API_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({mode,model,prompt,image})});const j=await r.json();if(!r.ok||!j.url)throw new Error(j.error||'Ошибка AI');return j.url}
 async function uploadCloudinary(file){
   let blob=file;
@@ -135,8 +152,8 @@ async function makePrivateCopy(url){
   }
 }
 async function savePrivate(url,mode,model,prompt){if(!currentUser)return;const id=Date.now();const privateUrl=await makePrivateCopy(url);await personalRef().child(String(id)).set({id,url:privateUrl,mode,model,prompt,time:new Date().toLocaleString('ru-RU'),date:new Date().toLocaleDateString('ru-RU'),published:false,ownerName:currentUser.displayName||currentUser.email||'Пользователь'});return privateUrl}
-$('editRun').onclick=async()=>{if(!currentUser)return st($('editStatus'),'Сначала войдите через Google.','err');if(!sourceData)return st($('editStatus'),'Сначала загрузи фото.','err');if(!$('editPrompt').value.trim())return st($('editStatus'),'Напиши, что изменить.','err');try{editResult=await callAI('edit',$('editModel').value,$('editPrompt').value.trim(),sourceData,$('editStatus'));$('afterBox').innerHTML=`<img src="${editResult}">`;$('editSave').classList.add('show');await savePrivate(editResult,'Редактирование',$('editModel').value,$('editPrompt').value.trim());st($('editStatus'),'Готово. Сохранено в «Моих работах».','ok')}catch(e){st($('editStatus'),'Ошибка: '+e.message,'err')}};
-$('genRun').onclick=async()=>{if(!currentUser)return st($('genStatus'),'Сначала войдите через Google.','err');if(!$('genPrompt').value.trim())return st($('genStatus'),'Напиши, что создать.','err');try{genResult=await callAI('generate',$('genModel').value,$('genPrompt').value.trim(),'', $('genStatus'));$('genBox').innerHTML=`<img src="${genResult}">`;$('genSave').classList.add('show');await savePrivate(genResult,'Генерация',$('genModel').value,$('genPrompt').value.trim());st($('genStatus'),'Готово. Сохранено в «Моих работах».','ok')}catch(e){st($('genStatus'),'Ошибка: '+e.message,'err')}};
+$('editRun').onclick=async()=>{if(!currentUser)return st($('editStatus'),'Сначала войдите через Google.','err');if(!sourceData)return st($('editStatus'),'Сначала загрузи фото.','err');if(!$('editPrompt').value.trim())return st($('editStatus'),'Напиши, что изменить.','err');try{await reserveVisitorAIQuota();editResult=await callAI('edit',$('editModel').value,$('editPrompt').value.trim(),sourceData,$('editStatus'));$('afterBox').innerHTML=`<img src="${editResult}">`;$('editSave').classList.add('show');await savePrivate(editResult,'Редактирование',$('editModel').value,$('editPrompt').value.trim());st($('editStatus'),'Готово. Сохранено в «Моих работах».','ok')}catch(e){st($('editStatus'),'Ошибка: '+e.message,'err')}};
+$('genRun').onclick=async()=>{if(!currentUser)return st($('genStatus'),'Сначала войдите через Google.','err');if(!$('genPrompt').value.trim())return st($('genStatus'),'Напиши, что создать.','err');try{await reserveVisitorAIQuota();genResult=await callAI('generate',$('genModel').value,$('genPrompt').value.trim(),'', $('genStatus'));$('genBox').innerHTML=`<img src="${genResult}">`;$('genSave').classList.add('show');await savePrivate(genResult,'Генерация',$('genModel').value,$('genPrompt').value.trim());st($('genStatus'),'Готово. Сохранено в «Моих работах».','ok')}catch(e){st($('genStatus'),'Ошибка: '+e.message,'err')}};
 function download(u,name){const a=document.createElement('a');a.href=u;a.download=name;a.target='_blank';a.click()}$('editSave').onclick=()=>download(editResult,'ai-edit.png');$('genSave').onclick=()=>download(genResult,'ai-generate.png');
 async function uploadPublic(url){return /^https:\/\//.test(url)?url:await makePrivateCopy(url)}
 async function publishWork(id){
