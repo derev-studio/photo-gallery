@@ -657,6 +657,9 @@
 .best-tools{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin:8px 0}.best-tools button{border:1px solid #e7d5a8;border-radius:11px;padding:7px 9px;background:#fff8e6;color:#73581e;font:inherit;font-size:12px;font-weight:750;cursor:pointer}.best-tools button:hover{background:#ffebac}.best-tools .best-active{color:#176443;background:#e9f7ee;border-color:#b6d9c4}.best-tools small{font-size:12px;color:#81725b}.best-tile-tag{display:block;padding:2px 12px 8px;color:#806022;font-size:12px;font-weight:800}
 @media(max-width:650px){.invite-main{order:3;width:100%}.invite-dialog{padding:17px}.invite-dialog h2{font-size:21px}}
 /* Единое меню авторских сайтов. На телефоне занимает не более 90% экрана. */
+.header-topline {display:flex;align-items:center;justify-content:space-between;gap:12px;flex:1 1 100%;min-width:0}
+.header-topline h1 {min-width:0}
+.sites-label-compact {display:none}
 .sites-menu-trigger {display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;min-height:42px;padding:9px 15px;background:#edf5ef;border:1px solid #bdd8c6;border-radius:23px;color:#215b3b;font:inherit;font-size:14px;font-weight:800;cursor:pointer;box-shadow:0 2px 8px #123d2714}
 .sites-menu-trigger:hover {background:#deefe3}
 .sites-menu-trigger:focus-visible,.sites-drawer a:focus-visible,.sites-drawer button:focus-visible {outline:3px solid #0a9a65;outline-offset:3px}
@@ -672,7 +675,7 @@
 .sites-drawer-links a[aria-current="page"] {background:#eff2ef;border-color:#c9d0ca}
 .sites-drawer-links strong {font-size:17px}
 .sites-drawer-links small {font-size:12px;line-height:1.4;color:#687f70}
-@media(max-width:650px) {header {position:relative} header h1 {width:100%;box-sizing:border-box;padding-right:100px;font-size:clamp(17px,5vw,22px)} header .sites-menu-trigger {position:absolute;right:0;top:0;min-height:39px;padding:7px 12px;font-size:13px} .sites-drawer {width:min(370px,90vw);padding:24px 18px;border-radius:20px 0 0 20px} .sites-drawer-head h2 {font-size:22px}}
+@media(max-width:650px) {.header-topline h1 {width:auto;padding-right:0;font-size:clamp(17px,5vw,22px)} .sites-menu-trigger {min-height:39px;padding:7px 12px;font-size:13px;flex-shrink:0} .sites-label-full {display:none} .sites-label-compact {display:inline} .sites-drawer {width:min(370px,90vw);padding:24px 18px;border-radius:20px 0 0 20px} .sites-drawer-head h2 {font-size:22px}}
 </style>
 <script src="analytics-client.js"></script>
 </head>
@@ -724,8 +727,10 @@
     </dialog>
     <div class="container">
         <header>
-            <h1>📷 Галерея друзей</h1>
-            <button class="sites-menu-trigger" type="button" onclick="document.getElementById('sites-drawer').showModal()" aria-haspopup="dialog" aria-controls="sites-drawer">☰ Сайты</button>
+            <div class="header-topline">
+                <h1>📷 Галерея друзей</h1>
+                <button class="sites-menu-trigger" type="button" onclick="document.getElementById('sites-drawer').showModal()" aria-haspopup="dialog" aria-controls="sites-drawer">☰ <span class="sites-label-full">Империя сайтов</span><span class="sites-label-compact">Сайты</span></button>
+            </div>
             <button type="button" class="invite-main" onclick="openGalleryInvite()">👥 Пригласить друзей</button>
             <div class="header-controls">
                 <div class="theme-switcher" style="display:flex; gap:6px;">
