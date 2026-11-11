@@ -156,6 +156,27 @@
         }
         .author-quick small {display:block;color:#607285;font-size:12px;font-weight:500;margin-top:2px;}
         .author-quick.active {background:#e2f4e9;border:2px solid #25674f;padding:7px 12px 7px 7px;color:#15442f;}
+        .category-heading {display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin:6px 0 12px;}
+        .category-heading h3 {font-size:20px;color:#173e31;margin:0;}
+        .category-heading small {color:#607285;font-size:13px;}
+        .category-filters {display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:16px;}
+        .category-filters button,.upload-category-picker button {
+            border:1px solid #cbd9cf;border-radius:26px;background:#f4f8f5;color:#244332;
+            padding:9px 13px;font:inherit;font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap;
+        }
+        .category-filters button[aria-pressed="true"],.upload-category-picker button[aria-pressed="true"] {
+            background:#146b44;color:#fff;border-color:#146b44;box-shadow:0 3px 11px #14724932;
+        }
+        .category-filters button[data-category="cacti"] {border-color:#329a64;}
+        .category-filters button:hover,.upload-category-picker button:hover {border-color:#188452;}
+        .upload-categories {max-width:900px;margin:0 auto 14px;background:#f5faf6;border:1px solid #cdded2;border-radius:17px;padding:13px 17px;color:#244332;}
+        .upload-categories summary {cursor:pointer;font-weight:750;}
+        .upload-category-picker {display:flex;flex-wrap:wrap;gap:8px;margin:13px 0 8px;}
+        .upload-categories p {font-size:13px;color:#61776a;margin:0;}
+        @media(max-width:650px) {
+            .category-filters {flex-wrap:nowrap;overflow-x:auto;padding-bottom:9px;scroll-snap-type:x proximity;}
+            .category-filters button {flex:none;scroll-snap-align:start;}
+        }
         .media-filters {display:flex;align-items:center;flex-wrap:wrap;gap:8px;border-top:1px solid #e5eaf0;padding-top:14px;}
         .media-filters button {
             border:1px solid #c7d5de;border-radius:28px;padding:10px 18px;
@@ -696,6 +717,11 @@
                     <div id="upload-status" style="margin-top:12px; font-weight:600;"></div>
                 </div>
             </div>
+            <details class="upload-categories" id="upload-category-details">
+                <summary>🏷 Выбрать раздел (необязательно)</summary>
+                <div class="upload-category-picker" id="upload-category-picker" role="group" aria-label="Разделы публикации"></div>
+                <p>Можно выбрать несколько разделов. Без выбора фотография тоже опубликуется.</p>
+            </details>
             <div class="quick-actions">
                 <button class="btn" id="start-btn" onclick="goToStep3()" disabled>Опубликовать</button>
             </div>
@@ -751,13 +777,15 @@
         <div class="tab-content active" id="tab3">
             <div id="gallery-success" role="status" style="display:none;background:#e7f6e9;border:1px solid #a1cfb1;color:#194e36;padding:16px;border-radius:17px;margin-bottom:16px;line-height:1.7;"></div>
             <div class="gallery-update">
-                <div><strong>🎬 Обновление галереи!</strong><p>Теперь можно добавлять видео с YouTube, ВКонтакте и Dailymotion. Фотографии тоже на месте.</p></div>
-                <button type="button" onclick="switchTab('tab1');document.getElementById('video-publish-title').scrollIntoView({behavior:'smooth'})">📤 Добавить видео</button>
+                <div><strong>🌵 Галерея кактусов, природы и фотографии</strong><p>Дикие и домашние кактусы, цветы, пейзажи, портреты и другие работы — вместе и по отдельным разделам.</p></div>
+                <button type="button" onclick="setCategoryFilter('cacti')">🌵 Смотреть кактусы</button>
             </div>
             <section id="featured-section" class="featured-section" aria-label="Лучшие кадры" hidden></section>
             <section class="gallery-discovery" aria-label="Выбор автора и раздела">
                 <div class="gallery-discovery-heading"><h3>👥 Авторы</h3><button type="button" class="copy-gallery-btn" id="copy-gallery-btn" onclick="copyGalleryLink()">🔗 Скопировать ссылку</button></div>
                 <div id="gallery-authors" class="gallery-people"></div>
+                <div class="category-heading"><h3>📚 Разделы</h3><small>Все работы вместе или по темам</small></div>
+                <div class="category-filters" id="gallery-categories" role="group" aria-label="Разделы фотографий"></div>
                 <div class="media-filters" role="group" aria-label="Выбор типа работ">
                     <button class="active" data-media="all" type="button" onclick="setMediaFilter('all')">🌍 Всё</button>
                     <button data-media="photo" type="button" onclick="setMediaFilter('photo')">🖼️ Фото</button>
@@ -890,6 +918,93 @@
             'plants flowers and botanical': 'Оранжерея'
         };
         const candidate_labels = Object.keys(categoryMap);
+
+        // Разделы как у большой фотогалереи: одна работа может быть в нескольких подборках.
+        const PHOTO_CATEGORIES = [
+            {id:'cacti',name:'Кактусы',icon:'🌵'},
+            {id:'nature',name:'Природа',icon:'🌿'},
+            {id:'flowers',name:'Цветы',icon:'🌸'},
+            {id:'plants',name:'Растения',icon:'🌱'},
+            {id:'landscapes',name:'Пейзажи',icon:'🏞️'},
+            {id:'animals',name:'Животные',icon:'🐾'},
+            {id:'birds',name:'Птицы',icon:'🐦'},
+            {id:'macro',name:'Макро',icon:'🔎'},
+            {id:'portraits',name:'Портреты',icon:'👤'},
+            {id:'people',name:'Люди',icon:'👥'},
+            {id:'stilllife',name:'Натюрморты',icon:'🍎'},
+            {id:'architecture',name:'Архитектура',icon:'🏛️'},
+            {id:'travel',name:'Путешествия',icon:'🧳'},
+            {id:'street',name:'Уличное фото',icon:'🏙️'},
+            {id:'sport',name:'Спорт',icon:'⚽'},
+            {id:'art',name:'Искусство',icon:'🎨'},
+            {id:'ai',name:'ИИ‑работы',icon:'✨'},
+            {id:'other',name:'Разное',icon:'📷'}
+        ];
+        let activeCategory = 'all';
+        const uploadCategories = new Set();
+        function photoCategoryIds(photo) {
+            const found = new Set((Array.isArray(photo?.categories) ? photo.categories : [])
+                .filter(id => PHOTO_CATEGORIES.some(c => c.id === id)));
+            const rubric = String(photo?.rubric || '').toLowerCase();
+            if (/кактус/.test(rubric)) found.add('cacti');
+            if (/цвет/.test(rubric)) found.add('flowers');
+            if (/растени|оранжере|ботани/.test(rubric)) found.add('plants');
+            if (/пейзаж/.test(rubric)) found.add('landscapes');
+            if (/животн/.test(rubric)) found.add('animals');
+            if (/птиц/.test(rubric)) found.add('birds');
+            if (/макро/.test(rubric)) found.add('macro');
+            if (/портрет/.test(rubric)) found.add('portraits');
+            if (/люди/.test(rubric)) found.add('people');
+            if (/натюрморт/.test(rubric)) found.add('stilllife');
+            if (/архитект/.test(rubric)) found.add('architecture');
+            if (/путешеств/.test(rubric)) found.add('travel');
+            if (/уличн/.test(rubric)) found.add('street');
+            if (/спорт/.test(rubric)) found.add('sport');
+            if (/арт|искусств|загадк|абстракц/.test(rubric)) found.add('art');
+            if (/ии|ai|генерац|редактирован/.test(rubric)) found.add('ai');
+            if (['cacti','flowers','plants','landscapes','animals','birds'].some(id=>found.has(id))) found.add('nature');
+            if (found.has('cacti') || found.has('flowers')) found.add('plants');
+            if (found.has('birds')) found.add('animals');
+            if (!found.size) found.add('other');
+            return found;
+        }
+        function renderCategoryPicker() {
+            const element = document.getElementById('gallery-categories');
+            if (!element) return;
+            const visible = allPhotos.filter(p => p.rubric !== 'Жанр Ню' || document.getElementById('show-nude').checked);
+            const categories = [{id:'all',name:'Все работы',icon:'🌍'},...PHOTO_CATEGORIES];
+            element.innerHTML = categories.map(category => {
+                const count = category.id === 'all' ? visible.length
+                    : visible.filter(photo => photoCategoryIds(photo).has(category.id)).length;
+                const chosen = activeCategory === category.id;
+                return '<button type="button" data-category="' + category.id
+                    + '" aria-pressed="' + chosen + '" onclick="setCategoryFilter(this.dataset.category)">'
+                    + category.icon + ' ' + category.name + ' (' + count + ')</button>';
+            }).join('');
+        }
+        window.setCategoryFilter = function(id) {
+            activeCategory = id === 'all' || PHOTO_CATEGORIES.some(category=>category.id===id) ? id : 'all';
+            activeProfile = null;
+            document.getElementById('search-input').value = '';
+            cleanGalleryAddress();
+            switchTab('tab3');
+            renderCatalog();
+        };
+        function renderUploadCategoryPicker() {
+            const container = document.getElementById('upload-category-picker');
+            if (!container) return;
+            container.innerHTML = PHOTO_CATEGORIES.map(category =>
+                '<button type="button" data-category="' + category.id + '" aria-pressed="'
+                + uploadCategories.has(category.id) + '" onclick="toggleUploadCategory(this.dataset.category)">'
+                + category.icon + ' ' + category.name + '</button>').join('');
+        }
+        window.toggleUploadCategory = function(id) {
+            if (!PHOTO_CATEGORIES.some(category=>category.id===id)) return;
+            if (uploadCategories.has(id)) uploadCategories.delete(id); else uploadCategories.add(id);
+            renderUploadCategoryPicker();
+        };
+        renderUploadCategoryPicker();
+
 
         // Никакие модели не загружаются автоматически: галерея доступна сразу.
         let lastUploadedUrl = '';
@@ -1486,7 +1601,8 @@
                 const photo = {
                     id: Date.now(),
                     img: lastUploadedUrl,
-                    rubric: detectedCategory || 'Другое',
+                    rubric: uploadCategories.size ? PHOTO_CATEGORIES.find(c => uploadCategories.has(c.id)).name : detectedCategory || 'Другое',
+                    categories: [...uploadCategories],
                     author: currentAuthor,
                     ownerUid: account.uid,
                     storage: 'imgbb',
@@ -1517,6 +1633,9 @@
                 const success = document.getElementById('gallery-success');
                 success.style.display = 'block';
                 success.innerHTML = `✅ Готово! <a href="${editUrl}">🎨 Редактировать</a>`;
+                activeCategory = 'all';
+                uploadCategories.clear();
+                renderUploadCategoryPicker();
                 switchTab('tab3');
                 renderCatalog();
                 window.scrollTo({top:0,behavior:'smooth'});
@@ -2000,6 +2119,7 @@
             const editCaret = activeEditKey ? document.activeElement.selectionStart : null;
             const search = document.getElementById('search-input').value.toLowerCase();
             renderAuthorPicker();
+            renderCategoryPicker();
             renderFeaturedPhotos();
             let filtered = allPhotos.filter(p => p.rubric !== 'Жанр Ню' || document.getElementById('show-nude').checked);
 
@@ -2022,13 +2142,14 @@
 
             if (mediaFilter === 'video') filtered = filtered.filter(p => p.mediaType === 'video');
             if (mediaFilter === 'photo') filtered = filtered.filter(p => p.mediaType !== 'video');
+            if (activeCategory !== 'all') filtered = filtered.filter(p => photoCategoryIds(p).has(activeCategory));
 
             if (sortMode === 'date') filtered.sort((a,b) => b.id - a.id);
             else if (sortMode === 'likes') filtered.sort((a,b) => (b.likes||0) - (a.likes||0));
             else if (sortMode === 'author') filtered.sort((a,b) => (a.author||'').localeCompare(b.author||''));
 
             if (!filtered.length) {
-                container.innerHTML = `<p style="text-align:center; color:#6b7a8f; padding:30px 0;">В этом разделе пока нет работ. Выберите «Всё» или другого автора выше.</p>`;
+                container.innerHTML = `<p style="text-align:center; color:#6b7a8f; padding:30px 0;">В этом разделе пока нет работ. Выберите «Все работы» или опубликуйте первую фотографию здесь.</p>`;
                 return;
             }
 
@@ -2047,7 +2168,9 @@
 
             // Общая лента: все авторы рядом по дате; выбор автора остаётся отдельно.
             const displayRooms = activeProfile ? [...rooms.values()] : [{
-                name: mediaFilter === 'video' ? '🎬 Все видео' : mediaFilter === 'photo' ? '🖼️ Все фотографии' : '🌍 Новые работы всех авторов',
+                name: activeCategory !== 'all'
+                    ? (PHOTO_CATEGORIES.find(c => c.id === activeCategory)?.icon + ' ' + PHOTO_CATEGORIES.find(c => c.id === activeCategory)?.name)
+                    : mediaFilter === 'video' ? '🎬 Все видео' : mediaFilter === 'photo' ? '🖼️ Все фотографии' : '🌍 Новые работы всех авторов',
                 uid: '', items: filtered, combined: true
             }];
             let html = '';
