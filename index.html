@@ -138,6 +138,11 @@
         .gallery-update strong {display:block;font-size:18px;color:#194c36;margin-bottom:5px;}
         .gallery-update p {margin:0;color:#466b5b;line-height:1.45;}
         .gallery-update button {background:#25674f;color:white;border:0;border-radius:28px;padding:11px 17px;font:inherit;font-weight:700;cursor:pointer;}
+        .gallery-update .cactus-community-link {display:inline-block;margin-top:9px;color:#1e6b47;font-size:13px;font-weight:700;text-underline-offset:3px;}
+        .gallery-update .cactus-actions {display:flex;gap:9px;flex-wrap:wrap;max-width:570px;justify-content:flex-end;}
+        .gallery-update .cactus-actions button {font-size:14px;white-space:normal;text-align:center;}
+        .gallery-update .cactus-actions .cactus-invite {background:#e0f2e7;color:#195236;border:1px solid #aad3ba;}
+        @media(max-width:650px){.gallery-update .cactus-actions{justify-content:stretch;width:100%;}.gallery-update .cactus-actions button{flex:1 1 100%;}}
         .gallery-discovery {
             margin-bottom:18px; padding:16px; border:1px solid #dae5ed; border-radius:20px; background:#fff;
         }
@@ -718,7 +723,7 @@
                 </div>
             </div>
             <details class="upload-categories" id="upload-category-details">
-                <summary>🏷 Выбрать раздел (необязательно)</summary>
+                <summary id="upload-category-summary">🏷 Выбрать раздел (необязательно)</summary>
                 <div class="upload-category-picker" id="upload-category-picker" role="group" aria-label="Разделы публикации"></div>
                 <p>Можно выбрать несколько разделов. Без выбора фотография тоже опубликуется.</p>
             </details>
@@ -777,8 +782,12 @@
         <div class="tab-content active" id="tab3">
             <div id="gallery-success" role="status" style="display:none;background:#e7f6e9;border:1px solid #a1cfb1;color:#194e36;padding:16px;border-radius:17px;margin-bottom:16px;line-height:1.7;"></div>
             <div class="gallery-update">
-                <div><strong>🌵 Галерея кактусов, природы и фотографии</strong><p>Дикие и домашние кактусы, цветы, пейзажи, портреты и другие работы — вместе и по отдельным разделам.</p></div>
-                <button type="button" onclick="setCategoryFilter('cacti')">🌵 Смотреть кактусы</button>
+                <div><strong>🌵 Кактусы дикие и домашние</strong><p>Для друзей нашего сообщества: покажите свои кактусы — цветущие, редкие, в природе или дома. Другие темы тоже есть в галерее.</p><a class="cactus-community-link" href="https://www.facebook.com/groups/656797861134195/" target="_blank" rel="noopener noreferrer">Наша группа в Facebook</a></div>
+                <div class="cactus-actions">
+                    <button type="button" onclick="setCategoryFilter('cacti')">🌵 Смотреть кактусы</button>
+                    <button type="button" onclick="startCactusUpload()">📷 Добавить свой кактус</button>
+                    <button type="button" class="cactus-invite" onclick="openGalleryInvite('cacti')">👥 Пригласить кактусоводов</button>
+                </div>
             </div>
             <section id="featured-section" class="featured-section" aria-label="Лучшие кадры" hidden></section>
             <section class="gallery-discovery" aria-label="Выбор автора и раздела">
@@ -940,7 +949,8 @@
             {id:'ai',name:'ИИ‑работы',icon:'✨'},
             {id:'other',name:'Разное',icon:'📷'}
         ];
-        let activeCategory = 'all';
+        const entryCategory = new URLSearchParams(location.search).get('category');
+        let activeCategory = PHOTO_CATEGORIES.some(category => category.id === entryCategory) ? entryCategory : 'all';
         const uploadCategories = new Set();
         function photoCategoryIds(photo) {
             const found = new Set((Array.isArray(photo?.categories) ? photo.categories : [])
@@ -993,6 +1003,10 @@
         function renderUploadCategoryPicker() {
             const container = document.getElementById('upload-category-picker');
             if (!container) return;
+            const labels = [...uploadCategories].map(id => PHOTO_CATEGORIES.find(category => category.id === id)?.name).filter(Boolean);
+            document.getElementById('upload-category-summary').textContent = labels.length
+                ? '🏷 Раздел: ' + labels.join(', ') + ' (можно изменить)'
+                : '🏷 Выбрать раздел (необязательно)';
             container.innerHTML = PHOTO_CATEGORIES.map(category =>
                 '<button type="button" data-category="' + category.id + '" aria-pressed="'
                 + uploadCategories.has(category.id) + '" onclick="toggleUploadCategory(this.dataset.category)">'
@@ -1004,6 +1018,13 @@
             renderUploadCategoryPicker();
         };
         renderUploadCategoryPicker();
+        window.startCactusUpload = function() {
+            uploadCategories.clear();
+            uploadCategories.add('cacti');
+            renderUploadCategoryPicker();
+            switchTab('tab1');
+            window.scrollTo({top:0,behavior:'smooth'});
+        };
 
 
         // Никакие модели не загружаются автоматически: галерея доступна сразу.
@@ -1518,6 +1539,11 @@
         }
 
         function switchTab(tabId) {
+            // При входе из раздела предварительно выбираем ту же тему для публикации.
+            if (tabId === 'tab1' && activeCategory !== 'all' && uploadCategories.size === 0) {
+                uploadCategories.add(activeCategory);
+                renderUploadCategoryPicker();
+            }
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
             document.querySelector(`[data-tab="${tabId}"]`).classList.add('active');
@@ -1871,10 +1897,19 @@
 
         // Отправка приглашений — только после выбора адресата в приложении.
         const galleryInviteLink='https://derev-studio.github.io/photo-gallery/';
-        window.openGalleryInvite=function(){
-            const msg='Приглашаю посмотреть фотографии в нашей галерее и выбрать лучшие!';
-            const url=encodeURIComponent(galleryInviteLink), message=encodeURIComponent(msg+' '+galleryInviteLink);
-            document.getElementById('gallery-invite-url').value=galleryInviteLink;
+        const cactusInviteLink=galleryInviteLink+'cacti/';
+        let currentInviteLink=galleryInviteLink;
+        let currentInviteMessage='';
+        window.openGalleryInvite=function(category='all'){
+            const forCacti=category==='cacti';
+            const msg=forCacti
+                ? 'Друзья, приглашаю в нашу фотогалерею «Кактусы дикие и домашние»! Покажите свои кактусы, полюбуйтесь чужими снимками и выберите лучшие.'
+                : 'Приглашаю посмотреть фотографии в нашей галерее и выбрать лучшие!';
+            currentInviteLink=forCacti?cactusInviteLink:galleryInviteLink;
+            currentInviteMessage=msg;
+            document.getElementById('gallery-invite-title').textContent=forCacti?'🌵 Пригласить кактусоводов':'👥 Пригласить друзей';
+            const url=encodeURIComponent(currentInviteLink), message=encodeURIComponent(msg+' '+currentInviteLink);
+            document.getElementById('gallery-invite-url').value=currentInviteLink;
             document.getElementById('invite-whatsapp').href='https://wa.me/?text='+message;
             document.getElementById('invite-telegram').href='https://t.me/share/url?url='+url+'&text='+encodeURIComponent(msg);
             document.getElementById('invite-facebook').href='https://www.facebook.com/sharer/sharer.php?u='+url;
@@ -1890,13 +1925,13 @@
         };
         window.shareGalleryOtherApps=async function(){
             const status=document.getElementById("invite-status");
-            try{await navigator.share({title:"Галерея друзей",text:"Посмотри фотографии и выбери лучшие!",url:galleryInviteLink});status.textContent="Окно отправки открыто."}
+            try{await navigator.share({title:"Галерея друзей",text:currentInviteMessage,url:currentInviteLink});status.textContent="Окно отправки открыто."}
             catch(e){if(e.name!=="AbortError")status.textContent="Выбери службу выше или скопируй ссылку."}
         };
         window.copyGalleryInvite=async function(){
             const status=document.getElementById('invite-status');
             try{
-                if(navigator.clipboard?.writeText)await navigator.clipboard.writeText(galleryInviteLink);
+                if(navigator.clipboard?.writeText)await navigator.clipboard.writeText(currentInviteLink);
                 else{const field=document.getElementById('gallery-invite-url');field.select();if(!document.execCommand('copy'))throw Error('copy');}
                 status.textContent='✓ Ссылка скопирована. Вставь её в сообщение.';
             }catch(e){status.textContent='Выдели и скопируй ссылку выше.';document.getElementById('gallery-invite-url').select();}
