@@ -30,9 +30,23 @@ dialog button{float:right}
 .human{color:#174b8f;font-weight:700}.robot{border-top:1px solid #e8eee9;padding-top:11px;margin-top:11px}
 .robot-row{display:flex;gap:8px;align-items:start;margin:8px 0;line-height:1.4}
 .robot-score{white-space:nowrap;font-weight:700;color:#745223}
-.rate{display:flex;gap:5px;flex-wrap:wrap;margin-top:9px}
-.rate button{border:1px solid #dacba7;background:#fffaf0;min-width:38px;font-size:16px;padding:7px}
-.rate button.selected{background:#d1a529;color:#1e241b;border-color:#b18b22;font-weight:800}
+.rate{display:flex;gap:2px;align-items:center;flex-wrap:nowrap;margin:8px 0 10px}
+.rate button.star{border:0;background:transparent;padding:2px;min-width:42px;min-height:46px;font-size:39px;line-height:1;color:#aeb5af;text-align:center;transition:color .12s,transform .12s}
+.rate button.star.filled{color:#edb316;text-shadow:0 1px 1px #8b671e}
+.rate button.star:hover{background:#fff6d5;transform:scale(1.08)}
+.rate button.star:focus-visible{outline:3px solid #195b45}
+.avg-stars{display:inline-flex;gap:1px;font-size:19px;letter-spacing:1px}
+.avg-stars .on{color:#e8af18}.avg-stars .off{color:#bfc6c0}
+#invite-dialog{width:min(510px,94vw);max-height:90vh;background:#fffdf6;color:#25352e;padding:22px;border:1px solid #e4d5b5;box-shadow:0 15px 50px #0004}
+#invite-dialog::backdrop{background:#071a13a8}
+#invite-dialog h2{font-size:23px;margin:0 0 12px}
+#invite-dialog .share-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
+#invite-dialog .share-top button{float:none}
+#invite-dialog .share-url{width:100%;font-size:15px;padding:12px 10px;border:1px solid #c9d7ce;border-radius:9px;background:#f7faf7;color:#234a3b}
+#invite-dialog .share-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:13px}
+#invite-dialog .primary{background:#195b45;color:white;border-color:#195b45}
+#share-feedback{font-weight:650;color:#216345;min-height:24px;margin:11px 0 0}
+.image-fail{display:flex;align-items:center;justify-content:center;aspect-ratio:4/3;text-align:center;padding:18px;background:#ecf1ee;color:#54635b;font-size:15px}
 .robot-action{margin-top:11px;border-color:#bfa6d7;color:#592b77}
 .status{padding:12px;border-radius:13px;background:#ecf6e9;color:#1e5738;margin:12px 0}
 .empty{text-align:center;padding:35px;background:white;border-radius:18px}
@@ -51,6 +65,14 @@ dialog button{float:right}
 <div id="status" role="status" aria-live="polite"></div>
 <div id="grid"></div>
 <dialog id="viewer" aria-label="Просмотр фотографии"><button type="button" id="close-viewer">✕ Закрыть</button><img alt="Фотография крупно"></dialog>
+<dialog id="invite-dialog" aria-label="Пригласить друзей">
+ <div class="share-top"><h2>🔗 Пригласить друзей</h2><button id="close-share" type="button">✕</button></div>
+ <p>Отправь друзьям ссылку. Они увидят фотографии и смогут поставить от одной до пяти звёзд.</p>
+ <label for="share-url">Ссылка на голосование:</label>
+ <input class="share-url" id="share-url" type="text" readonly>
+ <div class="share-actions"><button class="primary" id="copy-link" type="button">📋 Скопировать ссылку</button><button id="native-share" type="button" hidden>↗ Поделиться</button></div>
+ <p id="share-feedback" role="status" aria-live="polite"></p>
+</dialog>
 </main>
 <script>
 const cfg={apiKey:'AIzaSyB2X3o7KwYFkMfsskKoWpQYBrws8L-Mn9w',authDomain:'photo-gallery-18193.firebaseapp.com',projectId:'photo-gallery-18193',databaseURL:'https://photo-gallery-18193-default-rtdb.firebaseio.com',storageBucket:'photo-gallery-18193.firebasestorage.app',messagingSenderId:'329094770221',appId:'1:329094770221:web:b9d076f195f968668212a4'};
@@ -74,8 +96,10 @@ function render(){
   const scores=humanScores(p),self=p.juryVotes?.people?.[user?.uid]||null;
   const bot=p.juryVotes?.robots||null;
   const robotLine=(name,key)=>bot?.[key]&&Number(bot[key].score)>=1?'<div class="robot-row"><span class="robot-score">'+safe(name)+' '+safe(bot[key].score)+'/5</span><span>'+safe(bot[key].reason||'')+'</span></div>':'';
-  const stars=Array.from({length:5},(_,i)=>'<button type="button" class="'+(Number(self?.score)===i+1?'selected':'')+'" data-rate="'+safe(p.id)+'" data-score="'+(i+1)+'" aria-label="Поставить '+(i+1)+' из 5">'+(i+1)+' ★</button>').join('');
-  return '<article class="card" data-id="'+safe(p.id)+'"><img src="'+safe(p.img)+'" alt="Фотография автора '+safe(p.author||'Автор')+'" loading="lazy"><div class="card-body"><div class="author">'+safe(p.author||'Автор')+'</div><div class="stats"><span class="human">👥 Люди: '+mean(scores)+'/5</span><span class="muted">'+scores.length+' '+(scores.length===1?'голос':scores.length>=2&&scores.length<=4?'голоса':'голосов')+'</span></div><div class="muted">'+(user?(self?'Ваша оценка: '+safe(self.score)+'/5':'Выберите свою оценку:'):'Чтобы голосовать, войдите через Google.')+'</div><div class="rate">'+stars+'</div><div class="robot"><b>🤖 Голоса роботов</b>'+(bot?robotLine('Педант','pedant')+robotLine('Циник','cynic'):'<p class="muted">Роботы пока не оценили.</p>')+(isOwner?'<button class="robot-action" data-robot="'+safe(p.id)+'" '+(busy.has(String(p.id))?'disabled':'')+'>'+(busy.has(String(p.id))?'⏳ Роботы оценивают…':bot?'🔄 Переоценить роботами':'🤖 Запустить роботов')+'</button>':'')+'</div></div></article>';
+  const mine=Number(self?.score)||0;
+  const stars=Array.from({length:5},(_,i)=>'<button type="button" class="star '+(i<mine?'filled':'')+'" data-rate="'+safe(p.id)+'" data-score="'+(i+1)+'" title="'+(i+1)+' из 5" aria-label="Поставить '+(i+1)+' звёзд">'+(i<mine?'★':'☆')+'</button>').join('');
+  const avgStars=scores.length?'<span class="avg-stars" title="Средняя оценка людей" aria-label="Средняя оценка '+safe(mean(scores))+' из 5">'+Array.from({length:5},(_,i)=>'<span class="'+(i<Math.round(Number(mean(scores)))?'on':'off')+'">★</span>').join('')+'</span>':'';
+  return '<article class="card" data-id="'+safe(p.id)+'"><img src="'+safe(p.img)+'" alt="Фотография автора '+safe(p.author||'Автор')+'" loading="lazy"><div class="card-body"><div class="author">'+safe(p.author||'Автор')+'</div><div class="stats"><span class="human">👥 '+(scores.length?'Средняя оценка: '+mean(scores)+' из 5':'Пока нет оценок')+'</span>'+avgStars+'<span class="muted">'+scores.length+' '+(scores.length===1?'голос':scores.length>=2&&scores.length<=4?'голоса':'голосов')+'</span></div><div class="muted">'+(user?(self?'Вы поставили '+safe(self.score)+' из 5. Можно изменить:':'Выберите от 1 до 5 звёзд:'):'Выберите звёзды — для сохранения понадобится вход через Google.')+'</div><div class="rate" aria-label="Оценка фотографии от одной до пяти звёзд">'+stars+'</div><div class="robot"><b>🤖 Голоса роботов</b>'+(bot?robotLine('Педант','pedant')+robotLine('Циник','cynic'):'<p class="muted">Роботы пока не оценили.</p>')+(isOwner?'<button class="robot-action" data-robot="'+safe(p.id)+'" '+(busy.has(String(p.id))?'disabled':'')+'>'+(busy.has(String(p.id))?'⏳ Роботы оценивают…':bot?'🔄 Переоценить роботами':'🤖 Запустить роботов')+'</button>':'')+'</div></div></article>';
  }).join('');
 }
 async function signIn(){
@@ -83,7 +107,25 @@ async function signIn(){
  try{const r=await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());return r.user;}
  catch(e){if(e.code==='auth/popup-blocked'){await auth.signInWithRedirect(new firebase.auth.GoogleAuthProvider());return null;}if(e.code!=='auth/popup-closed-by-user')signal('Вход не выполнен: '+(e.message||''),true);return null;}
 }
-document.getElementById('invite').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(location.origin+location.pathname);signal('✅ Ссылка на голосование скопирована. Приглашай друзей.');}catch{window.prompt('Скопируйте ссылку на голосование:',location.origin+location.pathname);}});
+const inviteDialog=document.getElementById('invite-dialog');
+const shareUrl=document.getElementById('share-url');
+const shareFeedback=document.getElementById('share-feedback');
+function votingLink(){return location.origin+location.pathname;}
+document.getElementById('invite').addEventListener('click',()=>{
+ shareUrl.value=votingLink();shareFeedback.textContent='';
+ document.getElementById('native-share').hidden=!navigator.share;
+ inviteDialog.showModal();shareUrl.focus();shareUrl.select();
+});
+document.getElementById('close-share').addEventListener('click',()=>inviteDialog.close());
+document.getElementById('copy-link').addEventListener('click',async()=>{
+ shareUrl.focus();shareUrl.select();
+ try{if(!navigator.clipboard?.writeText)throw new Error('Clipboard not available');await navigator.clipboard.writeText(shareUrl.value);shareFeedback.textContent='✅ Ссылка скопирована. Вставь её в сообщение друзьям.';}
+ catch{const copied=document.execCommand('copy');shareFeedback.textContent=copied?'✅ Ссылка скопирована.':'Ссылка выделена. Нажми ⌘C (на Mac) или Ctrl+C, чтобы скопировать.';}
+});
+document.getElementById('native-share').addEventListener('click',async()=>{
+ try{await navigator.share({title:'Голосование за фотографии',text:'Посмотри фотографии и поставь звёзды!',url:votingLink()});shareFeedback.textContent='✅ Окно отправки открыто.';}
+ catch(e){if(e.name!=='AbortError')shareFeedback.textContent='Выбери и скопируй ссылку выше.';}
+});
 document.getElementById('login').addEventListener('click',async()=>{
  if(user){if(confirm('Выйти из аккаунта Google?'))await auth.signOut();}
  else await signIn();
@@ -97,6 +139,13 @@ auth.onAuthStateChanged(async u=>{
 db.ref('photos').on('value',snap=>{const data=snap.val();photos=data?Object.values(data):[];render();},err=>signal('Не удалось загрузить фотографии: '+err.message,true));
 document.getElementById('sort').addEventListener('change',render);
 document.getElementById('close-viewer').addEventListener('click',()=>document.getElementById('viewer').close());
+grid.addEventListener('error',event=>{
+ if(!event.target.matches('.card>img'))return;
+ const img=event.target;
+ if(img.nextElementSibling?.classList.contains('image-fail'))return;
+ img.style.display='none';
+ img.insertAdjacentHTML('afterend','<div class="image-fail">📷 Изображение пока не загружается. Попробуйте открыть фотографию в галерее.</div>');
+},true);
 grid.addEventListener('click',async event=>{
  if(event.target.matches('.card img')){const viewer=document.getElementById('viewer');viewer.querySelector('img').src=event.target.src;viewer.showModal();return;}
  const rate=event.target.closest('[data-rate]');
