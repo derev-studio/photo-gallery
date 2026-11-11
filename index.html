@@ -1075,7 +1075,7 @@
                 showRobotReview(result.pedant, result.cynic);
                 log.textContent = '✅ Педант и Циник самостоятельно обсудили фотографию. Можно послушать их ещё раз.';
             } catch (error) {
-                log.textContent = '❌ ИИ: ' + (error.message || 'Временно недоступен') + '. Предыдущая оценка сохранена.';
+                log.textContent = '❌ ИИ: ' + (/владельц/i.test(error.message || '') ? 'Эта функция пока недоступна' : (error.message || 'Временно недоступен')) + '. Предыдущая оценка сохранена.';
             } finally {
                 button.disabled = !selectedFile;
                 button.textContent = '🧠 Разговор с настоящим ИИ';
