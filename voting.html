@@ -66,8 +66,8 @@ dialog button{float:right}
 <header>
 <div class="nav"><a href="./">← Вернуться в галерею</a><div class="actions"><button type="button" id="invite">🔗 Пригласить друзей</button><button id="login" class="login" type="button">👤 Войти через Google</button></div></div>
 <h1>🏆 Голосование за фотографии</h1>
-<p>Здесь оценивают настоящие посетители и два робота — <b>Педант</b> и <b>Циник</b>. Голоса людей и оценки ИИ считаются отдельно.</p>
-<p class="muted">Один Google-аккаунт — одна оценка каждой фотографии. Свою оценку можно изменить. Роботы оценивают только по запуску владельцем, никакие голоса не выдумываются.</p>
+<p>Фотографии оценивают посетители — от одной до пяти звёзд.</p>
+<p class="muted">Один Google-аккаунт — одна оценка каждой фотографии. Свою оценку можно изменить.</p>
 </header>
 <div class="controls"><span id="total" class="muted">Загружаю фотографии…</span><label>Порядок: <select id="sort"><option value="date">Новые</option><option value="score">По оценке людей</option><option value="votes">По числу голосов</option></select></label></div>
 <div id="status" role="status" aria-live="polite"></div>
@@ -82,9 +82,13 @@ dialog button{float:right}
   <a id="share-wa" target="_blank" rel="noopener noreferrer">🟢 WhatsApp</a>
   <a id="share-tg" target="_blank" rel="noopener noreferrer">✈️ Telegram</a>
   <a id="share-fb" target="_blank" rel="noopener noreferrer">🔵 Facebook</a>
+  <a id="share-vk" target="_blank" rel="noopener noreferrer">🔵 ВКонтакте</a>
+  <a id="share-ok" target="_blank" rel="noopener noreferrer">🟠 Одноклассники</a>
+  <a id="share-viber">💜 Viber</a>
+  <a id="share-yandex" target="_blank" rel="noopener noreferrer">✉️ Яндекс Почта</a>
   <a id="share-mail">✉️ Почта</a>
  </div>
- <p class="share-explain">Нажми на нужную службу, выбери друга и отправь приглашение.</p>
+ <p class="share-explain">Выбери удобный способ — ссылки одинаковы для всех стран. Для Viber требуется установленное приложение.</p>
  <div class="share-actions"><button class="primary" id="copy-link" type="button">📋 Скопировать ссылку</button><button id="native-share" type="button" hidden>📲 Другие способы</button></div>
  <p id="share-feedback" role="status" aria-live="polite"></p>
 </dialog>
@@ -93,7 +97,7 @@ dialog button{float:right}
 const cfg={apiKey:'AIzaSyB2X3o7KwYFkMfsskKoWpQYBrws8L-Mn9w',authDomain:'photo-gallery-18193.firebaseapp.com',projectId:'photo-gallery-18193',databaseURL:'https://photo-gallery-18193-default-rtdb.firebaseio.com',storageBucket:'photo-gallery-18193.firebasestorage.app',messagingSenderId:'329094770221',appId:'1:329094770221:web:b9d076f195f968668212a4'};
 if(!firebase.apps.length)firebase.initializeApp(cfg);
 const auth=firebase.auth(),db=firebase.database(),worker='https://photo-ai-qwen.qerevv.workers.dev/';
-let user=null,isOwner=false,photos=[],busy=new Set();
+let user=null,isOwner=false,photos=[];
 const grid=document.getElementById('grid'),status=document.getElementById('status');
 const starSvg="<svg class=\"rating-star-icon\" viewBox=\"0 0 32 32\" aria-hidden=\"true\" focusable=\"false\"><path d=\"M16 2.7l4.1 8.4 9.3 1.35-6.72 6.55 1.58 9.25L16 23.9l-8.26 4.35 1.58-9.25L2.6 12.45l9.3-1.35z\"/></svg>";
 function safe(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
@@ -110,12 +114,10 @@ function render(){
  if(!list.length){grid.innerHTML='<div class="empty">Фотографии ещё загружаются или пока отсутствуют.</div>';return;}
  grid.innerHTML=list.map(p=>{
   const scores=humanScores(p),self=p.juryVotes?.people?.[user?.uid]||null;
-  const bot=p.juryVotes?.robots||null;
-  const robotLine=(name,key)=>bot?.[key]&&Number(bot[key].score)>=1?'<div class="robot-row"><span class="robot-score">'+safe(name)+' '+safe(bot[key].score)+'/5</span><span>'+safe(bot[key].reason||'')+'</span></div>':'';
   const mine=Number(self?.score)||0;
   const stars=Array.from({length:5},(_,i)=>'<button type="button" class="star '+(i<mine?'filled':'')+'" data-rate="'+safe(p.id)+'" data-score="'+(i+1)+'" title="'+(i+1)+' из 5" aria-label="Поставить '+(i+1)+' '+(i+1===1?'звезду':i+1===5?'звёзд':'звезды')+'">'+starSvg+'</button>').join('');
   const avgStars=scores.length?'<span class="avg-stars" title="Средняя оценка людей" aria-label="Средняя оценка '+safe(mean(scores))+' из 5">'+Array.from({length:5},(_,i)=>'<span class="'+(i<Math.round(Number(mean(scores)))?'on':'off')+'">★</span>').join('')+'</span>':'';
-  return '<article class="card" data-id="'+safe(p.id)+'"><img src="'+safe(p.img)+'" alt="Фотография автора '+safe(p.author||'Автор')+'" loading="lazy"><div class="card-body"><div class="author">'+safe(p.author||'Автор')+'</div><div class="stats"><span class="human">👥 '+(scores.length?'Средняя оценка: '+mean(scores)+' из 5':'Пока нет оценок')+'</span>'+avgStars+'<span class="muted">'+scores.length+' '+(scores.length===1?'голос':scores.length>=2&&scores.length<=4?'голоса':'голосов')+'</span></div><div class="muted">'+(user?(self?'Вы поставили '+safe(self.score)+' из 5. Можно изменить:':'Выберите от 1 до 5 звёзд:'):'Выберите звёзды — для сохранения понадобится вход через Google.')+'</div><div class="rate" data-selected="'+mine+'" aria-label="Оценка фотографии от одной до пяти звёзд">'+stars+'</div><div class="robot"><b>🤖 Голоса роботов</b>'+(bot?robotLine('Педант','pedant')+robotLine('Циник','cynic'):'<p class="muted">Роботы пока не оценили.</p>')+(isOwner?'<button class="robot-action" data-robot="'+safe(p.id)+'" '+(busy.has(String(p.id))?'disabled':'')+'>'+(busy.has(String(p.id))?'⏳ Роботы оценивают…':bot?'🔄 Переоценить роботами':'🤖 Запустить роботов')+'</button>':'')+'</div></div></article>';
+  return '<article class="card" data-id="'+safe(p.id)+'"><img src="'+safe(p.img)+'" alt="Фотография автора '+safe(p.author||'Автор')+'" loading="lazy"><div class="card-body"><div class="author">'+safe(p.author||'Автор')+'</div><div class="stats"><span class="human">👥 '+(scores.length?'Средняя оценка: '+mean(scores)+' из 5':'Пока нет оценок')+'</span>'+avgStars+'<span class="muted">'+scores.length+' '+(scores.length===1?'голос':scores.length>=2&&scores.length<=4?'голоса':'голосов')+'</span></div><div class="muted">'+(user?(self?'Вы поставили '+safe(self.score)+' из 5. Можно изменить:':'Выберите от 1 до 5 звёзд:'):'Выберите звёзды — для сохранения понадобится вход через Google.')+'</div><div class="rate" data-selected="'+mine+'" aria-label="Оценка фотографии от одной до пяти звёзд">'+stars+'</div></div></article>';
  }).join('');
 }
 async function signIn(){
@@ -133,6 +135,10 @@ document.getElementById('invite').addEventListener('click',()=>{
  document.getElementById('share-wa').href='https://wa.me/?text='+encodeURIComponent(message+' '+votingLink());
  document.getElementById('share-tg').href='https://t.me/share/url?url='+encodeURIComponent(votingLink())+'&text='+encodeURIComponent(message);
  document.getElementById('share-fb').href='https://www.facebook.com/sharer/sharer.php?u='+encodeURIComponent(votingLink());
+ document.getElementById('share-vk').href='https://vk.com/share.php?url='+encodeURIComponent(votingLink());
+ document.getElementById('share-ok').href='https://connect.ok.ru/offer?url='+encodeURIComponent(votingLink())+'&title='+encodeURIComponent('Галерея друзей');
+ document.getElementById('share-viber').href='viber://forward?text='+encodeURIComponent(message+' '+votingLink());
+ document.getElementById('share-yandex').href='https://mail.yandex.ru/compose?mailto='+encodeURIComponent('mailto:?subject='+encodeURIComponent('Приглашение в фотогалерею')+'&body='+encodeURIComponent(message+' '+votingLink()));
  document.getElementById('share-mail').href='mailto:?subject='+encodeURIComponent('Приглашение в фотогалерею')+'&body='+encodeURIComponent(message+' '+votingLink());
  document.getElementById('native-share').hidden=!navigator.share;
  inviteDialog.showModal();shareUrl.focus();shareUrl.select();
@@ -211,23 +217,6 @@ grid.addEventListener('click',async event=>{
   finally{rate.disabled=false;}
   return;
  }
- const robot=event.target.closest('[data-robot]');
- if(!robot||!user||!isOwner)return;
- const id=String(robot.dataset.robot);
- if(!/^\d+$/.test(id)||busy.has(id))return;
- const p=photos.find(x=>String(x.id)===id);
- if(!p)return;
- if(!confirm('Попросить двух роботов оценить фотографию? Это один запрос к ИИ.'))return;
- busy.add(id);render();signal('⏳ Роботы рассматривают фотографию…');
- try{
-  const token=await user.getIdToken();
-  const res=await fetch(worker,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({action:'juryVote',imageUrl:p.img})});
-  const data=await res.json();
-  if(!res.ok||!data.pedant||!data.cynic)throw new Error(data.error||'Роботы не ответили');
-  await db.ref('photos/'+id+'/juryVotes/robots').set({pedant:data.pedant,cynic:data.cynic,at:firebase.database.ServerValue.TIMESTAMP});
-  signal('✅ Оценки Педанта и Циника сохранены.');
- }catch(e){signal('Не удалось получить оценки роботов: '+e.message,true);}
- finally{busy.delete(id);render();}
 });
 </script>
 </body>
