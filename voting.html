@@ -106,7 +106,7 @@ function humanScores(p){const votes=p?.juryVotes?.people||{};return Object.value
 function mean(s){return s.length?(s.reduce((a,b)=>a+b,0)/s.length).toFixed(1):'—';}
 function render(){
  const sort=document.getElementById('sort').value;
- const list=photos.filter(p=>p&&p.mediaType!=='video'&&p.rubric!=='Жанр Ню'&&/^https:\/\//.test(p.img||''));
+ const list=photos.filter(p=>p&&p.mediaType!=='video'&&p.rubric!=='Жанр Ню'&&!(Array.isArray(p.categories)&&p.categories.includes('nude'))&&/^https:\/\//.test(p.img||''));
  if(sort==='date')list.sort((a,b)=>Number(b.id)-Number(a.id));
  if(sort==='score')list.sort((a,b)=>(humanScores(b).length?Number(mean(humanScores(b))):-1)-(humanScores(a).length?Number(mean(humanScores(a))):-1)||humanScores(b).length-humanScores(a).length);
  if(sort==='votes')list.sort((a,b)=>humanScores(b).length-humanScores(a).length);
