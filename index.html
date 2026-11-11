@@ -669,7 +669,6 @@
 .sites-drawer-links {display:grid;gap:10px}
 .sites-drawer-links a {display:flex;flex-direction:column;gap:5px;text-decoration:none;color:#23472f;padding:17px 16px;border:1px solid #d7e7db;border-radius:16px;background:#f8fcf9;min-height:65px;box-sizing:border-box}
 .sites-drawer-links a:hover {background:#e4f4e9;border-color:#7ab89b}
-.sites-drawer-links a[hidden] {display:none!important}
 .sites-drawer-links a[aria-current="page"] {background:#eff2ef;border-color:#c9d0ca}
 .sites-drawer-links strong {font-size:17px}
 .sites-drawer-links small {font-size:12px;line-height:1.4;color:#687f70}
@@ -718,7 +717,9 @@
             <a href="https://derev-studio.github.io/photo-gallery/" aria-current="page"><strong>📷 Галерея друзей</strong><small>Вы здесь</small></a>
             <a href="https://derev-studio.github.io/cactus-books/"><strong>🌵 Кактусярий</strong><small>Кактусы, систематика, уход и фотографии</small></a>
             <a href="https://derev-studio.github.io/derevyashkin-writer/"><strong>📚 Книги и стихи</strong><small>Литературный сайт Александра Деревяшкина</small></a>
-            <a id="theory-private-site-link" href="https://derev-studio.github.io/teoriya-zasiraniya.html" hidden><strong>💭 Теория засирания</strong><small>Авторский проект</small></a>
+            <a href="https://derev-studio.github.io/"><strong>🌳 Главная империя</strong><small>Все проекты, рассказы и исследования</small></a>
+            <a href="https://derev-studio.github.io/elki-palki/"><strong>🌲 Ёлки-палки</strong><small>Деревянная социальная сеть</small></a>
+            <a href="https://derev-studio.github.io/cow-site/"><strong>🐄 Система Деревяшкина</strong><small>Авторский проект</small></a>
         </nav>
     </dialog>
     <div class="container">
@@ -2726,7 +2727,6 @@
                 authUser = user;
                 currentUser = user?.displayName || user?.email?.split('@')[0] || '';
                 isAdmin = false;
-                document.getElementById('theory-private-site-link').hidden = true;
                 updateUserStatus();
                 if (document.getElementById('tab3').classList.contains('active')) renderCatalog();
                 if (user) {
@@ -2741,7 +2741,6 @@
                         if (firebase.auth().currentUser?.uid === user.uid) isAdmin = response.ok && result.isOwner === true;
                     } catch (e) { console.warn('Проверка владельца:', e); }
                 }
-                document.getElementById('theory-private-site-link').hidden = !isAdmin;
                 updateUserStatus();
                 if (document.getElementById('tab3').classList.contains('active')) renderCatalog();
             });
