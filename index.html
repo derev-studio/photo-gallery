@@ -2034,6 +2034,11 @@
         const featuredPhotoIds = ['1794237815289','1794162628824','1794162382837','1794281260138'];
         function renderFeaturedPhotos() {
             const section = document.getElementById('featured-section');
+            // В тематическом разделе показываем только выбранные фотографии, без чужой подборки наверху.
+            if (activeCategory !== 'all' || activeProfile || mediaFilter !== 'all' || document.getElementById('search-input').value.trim()) {
+                section.hidden = true;
+                return;
+            }
             const suggestedChoices = allPhotos.filter(p=>p.editorPick===true)
                 .sort((a,b)=>Object.keys(b.bestSuggestions||{}).length-Object.keys(a.bestSuggestions||{}).length);
             const featured = [...suggestedChoices,...featuredPhotoIds
