@@ -612,7 +612,7 @@
 .invite-dialog{position:fixed;inset:0;margin:auto;width:min(500px,calc(100% - 30px));max-height:calc(100dvh - 30px);overflow:auto;border:1px solid #c8e5d4;border-radius:22px;padding:22px;background:white;color:#213f2f;box-shadow:0 23px 70px #122f2a55}.invite-dialog::backdrop{background:#0d292ba8}
 .invite-dialog .invite-head{display:flex;align-items:center;justify-content:space-between;gap:10px}.invite-dialog h2{margin:0 0 12px;font-size:23px;color:#13663e}.invite-dialog p{margin:4px 0 14px;line-height:1.48}.invite-dialog input{box-sizing:border-box;width:100%;border:1px solid #b8d8c5;border-radius:11px;background:#f7fcf9;color:#246043;padding:12px;font-size:13px;margin:7px 0 15px}
 .invite-dialog .invite-links{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:12px}.invite-dialog .invite-links a{display:flex;align-items:center;justify-content:center;min-height:46px;padding:6px;border-radius:12px;text-align:center;text-decoration:none;background:#eefaf1;color:#136138;border:1px solid #cde5d3;font-weight:750}.invite-dialog .invite-links a:hover{background:#d7f1df}
-.invite-dialog .invite-copy{display:block;background:#137946;color:#fff;font-weight:800;font:inherit;font-weight:800;border:0;border-radius:12px;padding:13px;width:100%;cursor:pointer}.invite-dialog .invite-close{width:39px;height:39px;border-radius:12px;background:white;border:1px solid #cfdad3;font-size:22px;cursor:pointer}.invite-dialog #invite-status{font-size:13px;color:#17633c;min-height:20px;margin:9px 0 0}
+.invite-dialog .invite-copy{margin:8px 0;display:block;background:#137946;color:#fff;font-weight:800;font:inherit;font-weight:800;border:0;border-radius:12px;padding:13px;width:100%;cursor:pointer}.invite-dialog .invite-close{width:39px;height:39px;border-radius:12px;background:white;border:1px solid #cfdad3;font-size:22px;cursor:pointer}.invite-dialog #invite-status{font-size:13px;color:#17633c;min-height:20px;margin:9px 0 0}
 .best-tools{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin:8px 0}.best-tools button{border:1px solid #e7d5a8;border-radius:11px;padding:7px 9px;background:#fff8e6;color:#73581e;font:inherit;font-size:12px;font-weight:750;cursor:pointer}.best-tools button:hover{background:#ffebac}.best-tools .best-active{color:#176443;background:#e9f7ee;border-color:#b6d9c4}.best-tools small{font-size:12px;color:#81725b}.best-tile-tag{display:block;padding:2px 12px 8px;color:#806022;font-size:12px;font-weight:800}
 @media(max-width:650px){.invite-main{order:3;width:100%}.invite-dialog{padding:17px}.invite-dialog h2{font-size:21px}}
 </style>
@@ -643,10 +643,10 @@
 
     <dialog id="gallery-invite-dialog" class="invite-dialog" aria-labelledby="gallery-invite-title">
         <div class="invite-head"><h2 id="gallery-invite-title">👥 Пригласить друзей</h2><button class="invite-close" type="button" onclick="document.getElementById('gallery-invite-dialog').close()" aria-label="Закрыть">×</button></div>
-        <p>Выбери, куда отправить приглашение. Друг сможет посмотреть работы и поставить звёзды.</p>
+        <p>Выбери любой удобный способ. Ссылка открывается для друзей из разных стран. Viber требует установленного приложения.</p>
         <label for="gallery-invite-url">Ссылка на галерею</label><input id="gallery-invite-url" readonly value="https://derev-studio.github.io/photo-gallery/" onclick="this.select()">
-        <div class="invite-links"><a id="invite-whatsapp" target="_blank" rel="noopener noreferrer">🟢 WhatsApp</a><a id="invite-telegram" target="_blank" rel="noopener noreferrer">✈️ Telegram</a><a id="invite-facebook" target="_blank" rel="noopener noreferrer">🔵 Facebook</a><a id="invite-mail">✉️ Почта</a></div>
-        <button class="invite-copy" type="button" onclick="copyGalleryInvite()">📋 Скопировать ссылку</button>
+        <div class="invite-links"><a id="invite-whatsapp" target="_blank" rel="noopener noreferrer">🟢 WhatsApp</a><a id="invite-telegram" target="_blank" rel="noopener noreferrer">✈️ Telegram</a><a id="invite-facebook" target="_blank" rel="noopener noreferrer">🔵 Facebook</a><a id="invite-vk" target="_blank" rel="noopener noreferrer">🔵 ВКонтакте</a><a id="invite-ok" target="_blank" rel="noopener noreferrer">🟠 Одноклассники</a><a id="invite-viber">💜 Viber</a><a id="invite-yandex" target="_blank" rel="noopener noreferrer">✉️ Яндекс Почта</a><a id="invite-mail">✉️ Любая почта</a></div>
+        <button class="invite-copy" type="button" id="invite-other-apps" hidden onclick="shareGalleryOtherApps()">📲 Другие приложения на телефоне</button><button class="invite-copy" type="button" onclick="copyGalleryInvite()">📋 Скопировать ссылку</button>
         <p id="invite-status" role="status" aria-live="polite"></p>
     </dialog>
     <div class="container">
@@ -1759,9 +1759,20 @@
             document.getElementById('invite-whatsapp').href='https://wa.me/?text='+message;
             document.getElementById('invite-telegram').href='https://t.me/share/url?url='+url+'&text='+encodeURIComponent(msg);
             document.getElementById('invite-facebook').href='https://www.facebook.com/sharer/sharer.php?u='+url;
-            document.getElementById('invite-mail').href='mailto:?subject='+encodeURIComponent('Приглашение в фотогалерею')+'&body='+message;
+            document.getElementById('invite-vk').href='https://vk.com/share.php?url='+url;
+            document.getElementById('invite-ok').href='https://connect.ok.ru/offer?url='+url+'&title='+encodeURIComponent('Галерея друзей');
+            document.getElementById('invite-viber').href='viber://forward?text='+message;
+            const email='mailto:?subject='+encodeURIComponent('Приглашение в фотогалерею')+'&body='+message;
+            document.getElementById('invite-mail').href=email;
+            document.getElementById('invite-yandex').href='https://mail.yandex.ru/compose?mailto='+encodeURIComponent(email);
+            document.getElementById('invite-other-apps').hidden=typeof navigator.share!=='function';
             document.getElementById('invite-status').textContent='';
             document.getElementById('gallery-invite-dialog').showModal();
+        };
+        window.shareGalleryOtherApps=async function(){
+            const status=document.getElementById("invite-status");
+            try{await navigator.share({title:"Галерея друзей",text:"Посмотри фотографии и выбери лучшие!",url:galleryInviteLink});status.textContent="Окно отправки открыто."}
+            catch(e){if(e.name!=="AbortError")status.textContent="Выбери службу выше или скопируй ссылку."}
         };
         window.copyGalleryInvite=async function(){
             const status=document.getElementById('invite-status');
