@@ -161,6 +161,18 @@
         }
         .author-quick small {display:block;color:#607285;font-size:12px;font-weight:500;margin-top:2px;}
         .author-quick.active {background:#e2f4e9;border:2px solid #25674f;padding:7px 12px 7px 7px;color:#15442f;}
+        .gallery-rubrics {margin:6px 0 18px;}
+        .gallery-rubrics > summary {display:inline-flex;align-items:center;gap:9px;list-style:none;cursor:pointer;background:#e4f4e9;border:1px solid #90c9a7;border-radius:26px;padding:12px 19px;color:#195b3d;font:inherit;font-weight:800;box-shadow:0 2px 7px #10553614;}
+        .gallery-rubrics > summary::-webkit-details-marker {display:none;}
+        .gallery-rubrics > summary::after {content:'▾';font-size:15px;color:#315d45;}
+        .gallery-rubrics[open] > summary::after {content:'▴';}
+        .gallery-rubrics .category-filters {display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:9px;padding:14px;background:#f8fbf9;border:1px solid #dae9dd;border-radius:18px;margin:11px 0 0;overflow:visible;}
+        .gallery-rubrics .category-filters button {white-space:normal;text-align:left;}
+        .nude-cover {display:flex;width:100%;min-height:235px;flex-direction:column;align-items:center;justify-content:center;gap:11px;background:#727b84;color:#fff;border:0;padding:20px;cursor:pointer;text-align:center;}
+        .nude-cover strong {font-size:39px;line-height:1;font-weight:900;letter-spacing:1px;}
+        .nude-cover span {font-size:13px;max-width:240px;line-height:1.5;}
+        .nude-cover:hover {background:#606872;}
+        .nude-cover:focus-visible {outline:3px solid #f4d573;outline-offset:-4px;}
         .category-heading {display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin:6px 0 12px;}
         .category-heading h3 {font-size:20px;color:#173e31;margin:0;}
         .category-heading small {color:#607285;font-size:13px;}
@@ -793,8 +805,10 @@
             <section class="gallery-discovery" aria-label="Выбор автора и раздела">
                 <div class="gallery-discovery-heading"><h3>👥 Авторы</h3><button type="button" class="copy-gallery-btn" id="copy-gallery-btn" onclick="copyGalleryLink()">🔗 Скопировать ссылку</button></div>
                 <div id="gallery-authors" class="gallery-people"></div>
-                <div class="category-heading"><h3>📚 Разделы</h3><small>Все работы вместе или по темам</small></div>
-                <div class="category-filters" id="gallery-categories" role="group" aria-label="Разделы фотографий"></div>
+                <details class="gallery-rubrics" id="gallery-rubrics">
+                    <summary id="gallery-rubrics-summary">📚 Рубрики</summary>
+                    <div class="category-filters" id="gallery-categories" role="group" aria-label="Рубрики фотографий"></div>
+                </details>
                 <div class="media-filters" role="group" aria-label="Выбор типа работ">
                     <button class="active" data-media="all" type="button" onclick="setMediaFilter('all')">🌍 Всё</button>
                     <button data-media="photo" type="button" onclick="setMediaFilter('photo')">🖼️ Фото</button>
@@ -818,9 +832,6 @@
                     <button data-sort="author" onclick="setSort('author')">🔤 По автору</button>
                 </div>
             </div>
-            <label style="display:inline-flex;align-items:center;gap:8px;margin:0 0 22px;padding:10px 14px;background:#fff4ee;border:1px solid #f0d8c7;border-radius:16px;font-size:14px;cursor:pointer;">
-                <input type="checkbox" id="show-nude" onchange="renderCatalog()" style="width:19px;height:19px;"> 🔞 Показать раздел «Художественное ню» (18+)
-            </label>
             <div id="catalog-container"></div>
             <div class="text-center mt-20" style="display:flex; flex-wrap:wrap; gap:12px; justify-content:center;">
                 <button class="btn" onclick="switchTab('tab1');window.scrollTo({top:0,behavior:'smooth'})">📤 Добавить ещё</button>
@@ -946,12 +957,19 @@
             {id:'street',name:'Уличное фото',icon:'🏙️'},
             {id:'sport',name:'Спорт',icon:'⚽'},
             {id:'art',name:'Искусство',icon:'🎨'},
+            {id:'bw',name:'Чёрно-белое',icon:'◐'},
+            {id:'fantasy',name:'Фантазия',icon:'🪄'},
+            {id:'humor',name:'Юмор',icon:'😄'},
+            {id:'food',name:'Еда',icon:'🍽️'},
+            {id:'tech',name:'Техника',icon:'⚙️'},
             {id:'ai',name:'ИИ‑работы',icon:'✨'},
+            {id:'nude',name:'ню',icon:'🔞'},
             {id:'other',name:'Разное',icon:'📷'}
         ];
         const entryCategory = new URLSearchParams(location.search).get('category');
         let activeCategory = PHOTO_CATEGORIES.some(category => category.id === entryCategory) ? entryCategory : 'all';
         const uploadCategories = new Set();
+        const revealedNudeIds = new Set();
         function photoCategoryIds(photo) {
             const found = new Set((Array.isArray(photo?.categories) ? photo.categories : [])
                 .filter(id => PHOTO_CATEGORIES.some(c => c.id === id)));
@@ -972,16 +990,50 @@
             if (/спорт/.test(rubric)) found.add('sport');
             if (/арт|искусств|загадк|абстракц/.test(rubric)) found.add('art');
             if (/ии|ai|генерац|редактирован/.test(rubric)) found.add('ai');
+            if (/ч[её]рн.*бел/.test(rubric)) found.add('bw');
+            if (/фантаз|фэнтези/.test(rubric)) found.add('fantasy');
+            if (/юмор|смешн/.test(rubric)) found.add('humor');
+            if (/еда|кулинар/.test(rubric)) found.add('food');
+            if (/техника|фототех/.test(rubric)) found.add('tech');
+            if (rubric === 'жанр ню' || rubric === 'ню') found.add('nude');
             if (['cacti','flowers','plants','landscapes','animals','birds'].some(id=>found.has(id))) found.add('nature');
             if (found.has('cacti') || found.has('flowers')) found.add('plants');
             if (found.has('birds')) found.add('animals');
             if (!found.size) found.add('other');
             return found;
         }
+        function isNudePhoto(photo) { return photoCategoryIds(photo).has('nude'); }
+        function isNudeRevealed(photo) { return !isNudePhoto(photo) || revealedNudeIds.has(Number(photo.id)); }
+        function renderGalleryPhotoMedia(photo) {
+            const id = Number(photo.id);
+            if (isNudePhoto(photo) && !isNudeRevealed(photo)) {
+                // Исходное изображение НЕ загружаем, пока посетитель сам не нажмёт +18.
+                return '<button class="nude-cover" type="button" onclick="revealNudePhoto(' + id
+                    + ')" aria-label="Открыть художественное ню, подтверждаю возраст 18+">'
+                    + '<strong>+18</strong><span>Художественное ню<br>Нажимая, подтверждаете, что вам исполнилось 18 лет</span></button>';
+            }
+            const safeImage = escapeHtml(/^https:\/\//.test(photo.img || '') ? photo.img : '');
+            const imageArg = encodeURIComponent(photo.img || '');
+            return '<img src="' + safeImage + '" loading="lazy" alt="Работа автора ' + escapeHtml(photo.author || 'Автор')
+                + '" onclick="openLightbox(decodeURIComponent(\'' + imageArg
+                + '\'))" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">'
+                + '<div class="broken-photo">Фото недоступно</div>';
+        }
+        window.revealNudePhoto = function(id) {
+            id = Number(id);
+            if (!Number.isSafeInteger(id) || !allPhotos.some(photo => Number(photo.id) === id && isNudePhoto(photo))) return;
+            revealedNudeIds.add(id);
+            if (document.getElementById('tab3').classList.contains('active')) renderCatalog();
+            if (document.getElementById('tab4').classList.contains('active')) renderFavorites();
+        };
         function renderCategoryPicker() {
             const element = document.getElementById('gallery-categories');
             if (!element) return;
-            const visible = allPhotos.filter(p => p.rubric !== 'Жанр Ню' || document.getElementById('show-nude').checked);
+            const visible = allPhotos;
+            const chosenCategory = PHOTO_CATEGORIES.find(c => c.id === activeCategory);
+            document.getElementById('gallery-rubrics-summary').textContent = chosenCategory
+                ? '📚 Рубрики · ' + chosenCategory.name
+                : '📚 Рубрики';
             const categories = [{id:'all',name:'Все работы',icon:'🌍'},...PHOTO_CATEGORIES];
             element.innerHTML = categories.map(category => {
                 const count = category.id === 'all' ? visible.length
@@ -989,11 +1041,12 @@
                 const chosen = activeCategory === category.id;
                 return '<button type="button" data-category="' + category.id
                     + '" aria-pressed="' + chosen + '" onclick="setCategoryFilter(this.dataset.category)">'
-                    + category.icon + ' ' + category.name + ' (' + count + ')</button>';
+                    + category.icon + ' ' + category.name + (category.id === 'nude' ? ' · 18+' : '') + ' (' + count + ')</button>';
             }).join('');
         }
         window.setCategoryFilter = function(id) {
             activeCategory = id === 'all' || PHOTO_CATEGORIES.some(category=>category.id===id) ? id : 'all';
+            document.getElementById('gallery-rubrics').open = false;
             activeProfile = null;
             document.getElementById('search-input').value = '';
             cleanGalleryAddress();
@@ -1627,7 +1680,7 @@
                 const photo = {
                     id: Date.now(),
                     img: lastUploadedUrl,
-                    rubric: uploadCategories.size ? PHOTO_CATEGORIES.find(c => uploadCategories.has(c.id)).name : detectedCategory || 'Другое',
+                    rubric: uploadCategories.has('nude') ? 'Жанр Ню' : uploadCategories.size ? PHOTO_CATEGORIES.find(c => uploadCategories.has(c.id)).name : detectedCategory || 'Другое',
                     categories: [...uploadCategories],
                     author: currentAuthor,
                     ownerUid: account.uid,
@@ -2082,7 +2135,7 @@
                 .filter(p=>p.editorPick!==false)
                 .slice(0,4)
                 .filter(photo => photo && photo.mediaType !== 'video'
-                    && photo.rubric !== 'Жанр Ню' && /^https:\/\//.test(photo.img || ''));
+                    && !isNudePhoto(photo) && /^https:\/\//.test(photo.img || ''));
             section.hidden = !featured.length;
             if (!featured.length) { section.innerHTML = ''; return; }
             section.innerHTML =
@@ -2105,7 +2158,7 @@
 
         // Авторы доступны в начале страницы, даже если их снимки ниже по ленте.
         function renderAuthorPicker() {
-            const visible = allPhotos.filter(p => p.rubric !== 'Жанр Ню' || document.getElementById('show-nude').checked);
+            const visible = allPhotos;
             const identities = new Map();
             visible.forEach(p => { if (p.ownerUid && !identities.has(p.author)) identities.set(p.author, p.ownerUid); });
             const authors = new Map();
@@ -2116,7 +2169,7 @@
                 if (!authors.has(key)) authors.set(key, {uid,name,count:0,cover:''});
                 const person = authors.get(key);
                 person.count++;
-                if (!person.cover && p.mediaType !== 'video' && /^https:\/\//.test(p.img || '')) person.cover = p.img;
+                if (!person.cover && p.mediaType !== 'video' && !isNudePhoto(p) && /^https:\/\//.test(p.img || '')) person.cover = p.img;
             });
             const currentKey = activeProfile ? (activeProfile.uid ? 'uid:' + activeProfile.uid : 'name:' + activeProfile.name) : '';
             let buttons = '<button class="author-quick' + (!activeProfile ? ' active' : '')
@@ -2161,7 +2214,7 @@
             renderAuthorPicker();
             renderCategoryPicker();
             renderFeaturedPhotos();
-            let filtered = allPhotos.filter(p => p.rubric !== 'Жанр Ню' || document.getElementById('show-nude').checked);
+            let filtered = allPhotos.slice();
 
             const profileBar = document.getElementById('author-profile-bar');
             profileBar.style.display = activeProfile ? 'flex' : 'none';
@@ -2232,15 +2285,14 @@
                     html += `
                         <div class="gallery-item" id="photo-${item.id}">
                             ${isVideo ? renderVideoMedia(item) : `
-                            <img src="${safeImage}" loading="lazy" alt="Работа автора ${escapeHtml(item.author)}" onclick="openLightbox(decodeURIComponent('${imageArg}'))" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
-                            <div class="broken-photo">Фото недоступно</div>
+                            ${renderGalleryPhotoMedia(item)}
                             `}
                             <div class="info">
                                 <div><button class="author author-profile-link" type="button" data-uid="${escapeHtml(item.ownerUid || '')}" data-name="${escapeHtml(item.author || 'Автор')}" onclick="showAuthorProfile(this.dataset.uid,this.dataset.name)" title="Открыть страницу автора">${escapeHtml(item.author || 'Автор')} ↗</button>${item.isPro ? '<span class="pro-badge">PRO</span>' : ''}${isBanned ? '<span class="banned-badge">БАН</span>' : ''}</div>
                                 <div class="date" style="font-size:12px; color:#6b7a8f; margin-top:4px;">${escapeHtml(item.date)}</div>
                                 ${isVideo ? `<div class="video-caption">${escapeHtml(item.title || 'Видео')}</div><span class="video-platform">🎬 ${escapeHtml(item.videoProvider || 'Видео')}</span>` : ''}
-                                ${item.rubric && item.rubric !== 'Другое' ? `<div class="photo-genre">🏷 ${escapeHtml(item.rubric)}</div>` : ''}
-                                ${!isVideo ? renderGalleryRating(item) + bestControls(item) : ''}
+                                ${isNudePhoto(item) ? '<div class="photo-genre">🏷 ню · 18+</div>' : item.rubric && item.rubric !== 'Другое' ? `<div class="photo-genre">🏷 ${escapeHtml(item.rubric)}</div>` : ''}
+                                ${!isVideo && isNudeRevealed(item) ? renderGalleryRating(item) + bestControls(item) : ''}
                                 <div class="action-bar">
                                     <div style="display:flex; gap:6px; flex-wrap:wrap;">
                                         <button class="vote-btn like" onclick="vote(${item.id},'like')">👍 ${item.likes||0}</button>
@@ -2249,11 +2301,11 @@
                                     </div>
                                     <div style="display:flex; gap:4px;">
                                         <button class="icon-btn" onclick="toggleFav(${item.id})">${isFav ? '⭐' : '☆'}</button>
-                                        ${isVideo ? `<a class="icon-btn" href="${escapeHtml(parseVideoLink(item.videoUrl)?.url || '#')}" target="_blank" rel="noopener noreferrer" title="Открыть видео">↗</a>` : `
+                                        ${isVideo ? `<a class="icon-btn" href="${escapeHtml(parseVideoLink(item.videoUrl)?.url || '#')}" target="_blank" rel="noopener noreferrer" title="Открыть видео">↗</a>` : isNudeRevealed(item) ? `
                                         <button class="icon-btn" onclick="sharePhoto(decodeURIComponent('${imageArg}'))" title="Поделиться">📤</button>
                                         <button class="icon-btn" onclick="downloadPhoto(decodeURIComponent('${imageArg}'))" title="Скачать">📥</button>
                                         <button class="icon-btn" onclick="location.href='editor.html?image='+encodeURIComponent(decodeURIComponent('${imageArg}'))" title="Открыть в фоторедакторе">🎨</button>
-                                        `}
+                                        ` : ''}
                                         <button class="icon-btn" onclick="toggleComments(${item.id})" title="Комментарии">💬${comments.length ? ' ' + comments.length : ''}</button>
                                         ${(isAdmin || (authUser && (item.ownerUid === authUser.uid || (!item.ownerUid && ownPhotoIds.has(Number(item.id)))))) ? `<button class="icon-btn" style="color:#b42318;" onclick="deletePhoto(${item.id})" title="Удалить свою работу" aria-label="Удалить работу">🗑️</button>` : ''}
                                     </div>
@@ -2501,13 +2553,13 @@
             favPhotos.forEach(item => {
                 html += `
                     <div class="gallery-item">
-                        ${item.mediaType === 'video' ? renderVideoMedia(item) : `<img src="${escapeHtml(item.img)}" onclick="openLightbox(decodeURIComponent('${encodeURIComponent(item.img)}'))">`}
+                        ${item.mediaType === 'video' ? renderVideoMedia(item) : renderGalleryPhotoMedia(item)}
                         <div class="info">
                             <div><button class="author-profile-link" type="button" data-uid="${escapeHtml(item.ownerUid || '')}" data-name="${escapeHtml(item.author || 'Автор')}" onclick="showAuthorProfile(this.dataset.uid,this.dataset.name)">${escapeHtml(item.author || 'Автор')} ↗</button>${item.isPro ? '<span class="pro-badge">PRO</span>' : ''}</div>
                             <div style="font-size:12px; color:#6b7a8f;">${item.date || ''}</div>
                             <div style="display:flex; gap:8px; margin-top:8px;">
                                 <button class="icon-btn" onclick="toggleFav(${item.id})">⭐</button>
-                                ${item.mediaType === 'video' ? `<a class="icon-btn" href="${escapeHtml(parseVideoLink(item.videoUrl)?.url || '#')}" target="_blank" rel="noopener noreferrer" title="Смотреть видео">↗</a>` : `<button class="icon-btn" onclick="sharePhoto(decodeURIComponent('${encodeURIComponent(item.img)}'))">📤</button>`}
+                                ${item.mediaType === 'video' ? `<a class="icon-btn" href="${escapeHtml(parseVideoLink(item.videoUrl)?.url || '#')}" target="_blank" rel="noopener noreferrer" title="Смотреть видео">↗</a>` : isNudeRevealed(item) ? `<button class="icon-btn" onclick="sharePhoto(decodeURIComponent('${encodeURIComponent(item.img)}'))">📤</button>` : ''}
                             </div>
                         </div>
                     </div>
