@@ -161,11 +161,7 @@
         }
         .author-quick small {display:block;color:#607285;font-size:12px;font-weight:500;margin-top:2px;}
         .author-quick.active {background:#e2f4e9;border:2px solid #25674f;padding:7px 12px 7px 7px;color:#15442f;}
-        .gallery-rubrics-row {display:flex;align-items:flex-start;flex-wrap:wrap;gap:10px;margin:6px 0 18px;}
-        .gallery-rubrics {margin:0;}
-        .gallery-rubrics-row .gallery-rubrics[open] {flex-basis:100%;}
-        .gallery-rubrics-row .cactus-site-button {display:inline-flex;gap:6px;align-items:center;justify-content:center;text-decoration:none;min-height:45px;padding:10px 18px;border:1px solid #97cdb1;background:#f5faf6;border-radius:24px;color:#246347;font-weight:800;box-shadow:0 2px 7px #10553610;}
-        .gallery-rubrics-row .cactus-site-button:hover {background:#e2f4e9;}
+        .gallery-rubrics {margin:6px 0 18px;}
         .cactus-shortcuts {display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:0 3px 13px;}
         .cactus-shortcuts a,.cactus-shortcuts button {display:inline-flex;align-items:center;border:1px solid #c1dccc;background:#fff;border-radius:19px;padding:8px 13px;font:inherit;font-size:12px;color:#275e43;text-decoration:none;cursor:pointer;}
         .cactus-shortcuts a:hover,.cactus-shortcuts button:hover {background:#e4f4e9;}
@@ -660,6 +656,23 @@
 .invite-dialog .invite-copy{margin:8px 0;display:block;background:#137946;color:#fff;font-weight:800;font:inherit;font-weight:800;border:0;border-radius:12px;padding:13px;width:100%;cursor:pointer}.invite-dialog .invite-close{width:39px;height:39px;border-radius:12px;background:white;border:1px solid #cfdad3;font-size:22px;cursor:pointer}.invite-dialog #invite-status{font-size:13px;color:#17633c;min-height:20px;margin:9px 0 0}
 .best-tools{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin:8px 0}.best-tools button{border:1px solid #e7d5a8;border-radius:11px;padding:7px 9px;background:#fff8e6;color:#73581e;font:inherit;font-size:12px;font-weight:750;cursor:pointer}.best-tools button:hover{background:#ffebac}.best-tools .best-active{color:#176443;background:#e9f7ee;border-color:#b6d9c4}.best-tools small{font-size:12px;color:#81725b}.best-tile-tag{display:block;padding:2px 12px 8px;color:#806022;font-size:12px;font-weight:800}
 @media(max-width:650px){.invite-main{order:3;width:100%}.invite-dialog{padding:17px}.invite-dialog h2{font-size:21px}}
+/* Единое меню авторских сайтов. На телефоне занимает не более 90% экрана. */
+.sites-menu-trigger {display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;min-height:42px;padding:9px 15px;background:#edf5ef;border:1px solid #bdd8c6;border-radius:23px;color:#215b3b;font:inherit;font-size:14px;font-weight:800;cursor:pointer;box-shadow:0 2px 8px #123d2714}
+.sites-menu-trigger:hover {background:#deefe3}
+.sites-menu-trigger:focus-visible,.sites-drawer a:focus-visible,.sites-drawer button:focus-visible {outline:3px solid #0a9a65;outline-offset:3px}
+.sites-drawer {position:fixed;inset:0 0 0 auto;margin:0;width:min(370px,90vw);height:100dvh;max-height:100dvh;max-width:90vw;box-sizing:border-box;overflow:auto;border:0;border-radius:23px 0 0 23px;padding:27px 23px;background:#fff;color:#213b2b;box-shadow:-15px 0 45px #0d2b2d40}
+.sites-drawer::backdrop {background:#122c2b9e;backdrop-filter:blur(2px)}
+.sites-drawer-head {display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.sites-drawer-head h2 {font-size:24px;margin:0;color:#1d5539}
+.sites-drawer-close {border:0;background:#e9f1eb;width:39px;height:39px;border-radius:50%;font-size:20px;cursor:pointer;color:#275b3d}
+.sites-drawer > p {margin:8px 0 22px;color:#6b8172;font-size:14px}
+.sites-drawer-links {display:grid;gap:10px}
+.sites-drawer-links a {display:flex;flex-direction:column;gap:5px;text-decoration:none;color:#23472f;padding:17px 16px;border:1px solid #d7e7db;border-radius:16px;background:#f8fcf9;min-height:65px;box-sizing:border-box}
+.sites-drawer-links a:hover {background:#e4f4e9;border-color:#7ab89b}
+.sites-drawer-links a[aria-current="page"] {background:#eff2ef;border-color:#c9d0ca}
+.sites-drawer-links strong {font-size:17px}
+.sites-drawer-links small {font-size:12px;line-height:1.4;color:#687f70}
+@media(max-width:650px) {header {position:relative} header h1 {width:100%;box-sizing:border-box;padding-right:100px;font-size:clamp(17px,5vw,22px)} header .sites-menu-trigger {position:absolute;right:0;top:0;min-height:39px;padding:7px 12px;font-size:13px} .sites-drawer {width:min(370px,90vw);padding:24px 18px;border-radius:20px 0 0 20px} .sites-drawer-head h2 {font-size:22px}}
 </style>
 <script src="analytics-client.js"></script>
 </head>
@@ -694,9 +707,23 @@
         <button class="invite-copy" type="button" id="invite-other-apps" hidden onclick="shareGalleryOtherApps()">📲 Другие приложения на телефоне</button><button class="invite-copy" type="button" onclick="copyGalleryInvite()">📋 Скопировать ссылку</button>
         <p id="invite-status" role="status" aria-live="polite"></p>
     </dialog>
+    <dialog id="sites-drawer" class="sites-drawer" aria-labelledby="sites-drawer-title" onclick="if(event.target===this)this.close()">
+        <div class="sites-drawer-head">
+            <h2 id="sites-drawer-title">🌐 Империя сайтов</h2>
+            <button type="button" class="sites-drawer-close" onclick="document.getElementById('sites-drawer').close()" aria-label="Закрыть меню">✕</button>
+        </div>
+        <p>Проекты Александра Деревяшкина</p>
+        <nav class="sites-drawer-links" aria-label="Мои сайты">
+            <a href="https://derev-studio.github.io/photo-gallery/" aria-current="page"><strong>📷 Галерея друзей</strong><small>Вы здесь</small></a>
+            <a href="https://derev-studio.github.io/cactus-books/"><strong>🌵 Кактусярий</strong><small>Кактусы, систематика, уход и фотографии</small></a>
+            <a href="https://derev-studio.github.io/derevyashkin-writer/"><strong>📚 Книги и стихи</strong><small>Литературный сайт Александра Деревяшкина</small></a>
+            <a href="https://derev-studio.github.io/teoriya-zasiraniya.html"><strong>💭 Теория засирания</strong><small>Авторский проект</small></a>
+        </nav>
+    </dialog>
     <div class="container">
         <header>
             <h1>📷 Галерея друзей</h1>
+            <button class="sites-menu-trigger" type="button" onclick="document.getElementById('sites-drawer').showModal()" aria-haspopup="dialog" aria-controls="sites-drawer">☰ Сайты</button>
             <button type="button" class="invite-main" onclick="openGalleryInvite()">👥 Пригласить друзей</button>
             <div class="header-controls">
                 <div class="theme-switcher" style="display:flex; gap:6px;">
@@ -804,8 +831,7 @@
             <section class="gallery-discovery" aria-label="Выбор автора и раздела">
                 <div class="gallery-discovery-heading"><h3>👥 Авторы</h3><button type="button" class="copy-gallery-btn" id="copy-gallery-btn" onclick="copyGalleryLink()">🔗 Скопировать ссылку</button></div>
                 <div id="gallery-authors" class="gallery-people"></div>
-                <div class="gallery-rubrics-row">
-                    <details class="gallery-rubrics" id="gallery-rubrics">
+                <details class="gallery-rubrics" id="gallery-rubrics">
                         <summary id="gallery-rubrics-summary">📚 Рубрики</summary>
                         <div class="category-filters" id="gallery-categories" role="group" aria-label="Рубрики фотографий"></div>
                         <div class="cactus-shortcuts">
@@ -814,8 +840,6 @@
                             <button type="button" onclick="openGalleryInvite('cacti')">🔗 Пригласить кактусоводов</button>
                         </div>
                     </details>
-                    <a class="cactus-site-button" href="https://derev-studio.github.io/cactus-books/" target="_blank" rel="noopener noreferrer" title="Отдельный сайт Александра Деревяшкина о кактусах">🌵 Кактусярий <span aria-hidden="true">↗</span></a>
-                </div>
                 <div class="media-filters" role="group" aria-label="Выбор типа работ">
                     <button class="active" data-media="all" type="button" onclick="setMediaFilter('all')">🌍 Всё</button>
                     <button data-media="photo" type="button" onclick="setMediaFilter('photo')">🖼️ Фото</button>
