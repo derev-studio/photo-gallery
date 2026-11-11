@@ -161,7 +161,14 @@
         }
         .author-quick small {display:block;color:#607285;font-size:12px;font-weight:500;margin-top:2px;}
         .author-quick.active {background:#e2f4e9;border:2px solid #25674f;padding:7px 12px 7px 7px;color:#15442f;}
-        .gallery-rubrics {margin:6px 0 18px;}
+        .gallery-rubrics-row {display:flex;align-items:flex-start;flex-wrap:wrap;gap:10px;margin:6px 0 18px;}
+        .gallery-rubrics {margin:0;}
+        .gallery-rubrics-row .gallery-rubrics[open] {flex-basis:100%;}
+        .gallery-rubrics-row .cactus-site-button {display:inline-flex;gap:6px;align-items:center;justify-content:center;text-decoration:none;min-height:45px;padding:10px 18px;border:1px solid #97cdb1;background:#f5faf6;border-radius:24px;color:#246347;font-weight:800;box-shadow:0 2px 7px #10553610;}
+        .gallery-rubrics-row .cactus-site-button:hover {background:#e2f4e9;}
+        .cactus-shortcuts {display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:0 3px 13px;}
+        .cactus-shortcuts a,.cactus-shortcuts button {display:inline-flex;align-items:center;border:1px solid #c1dccc;background:#fff;border-radius:19px;padding:8px 13px;font:inherit;font-size:12px;color:#275e43;text-decoration:none;cursor:pointer;}
+        .cactus-shortcuts a:hover,.cactus-shortcuts button:hover {background:#e4f4e9;}
         .gallery-rubrics > summary {display:inline-flex;align-items:center;gap:9px;list-style:none;cursor:pointer;background:#e4f4e9;border:1px solid #90c9a7;border-radius:26px;padding:12px 19px;color:#195b3d;font:inherit;font-weight:800;box-shadow:0 2px 7px #10553614;}
         .gallery-rubrics > summary::-webkit-details-marker {display:none;}
         .gallery-rubrics > summary::after {content:'▾';font-size:15px;color:#315d45;}
@@ -793,22 +800,22 @@
         <!-- ВКЛАДКА 3 -->
         <div class="tab-content active" id="tab3">
             <div id="gallery-success" role="status" style="display:none;background:#e7f6e9;border:1px solid #a1cfb1;color:#194e36;padding:16px;border-radius:17px;margin-bottom:16px;line-height:1.7;"></div>
-            <div class="gallery-update">
-                <div><strong>🌵 Кактусы дикие и домашние</strong><p>Для друзей нашего сообщества: покажите свои кактусы — цветущие, редкие, в природе или дома. Другие темы тоже есть в галерее.</p><a class="cactus-community-link" href="https://www.facebook.com/groups/656797861134195/" target="_blank" rel="noopener noreferrer">Наша группа в Facebook</a></div>
-                <div class="cactus-actions">
-                    <button type="button" onclick="setCategoryFilter('cacti')">🌵 Смотреть кактусы</button>
-                    <button type="button" onclick="startCactusUpload()">📷 Добавить свой кактус</button>
-                    <button type="button" class="cactus-invite" onclick="openGalleryInvite('cacti')">👥 Пригласить кактусоводов</button>
-                </div>
-            </div>
             <section id="featured-section" class="featured-section" aria-label="Лучшие кадры" hidden></section>
             <section class="gallery-discovery" aria-label="Выбор автора и раздела">
                 <div class="gallery-discovery-heading"><h3>👥 Авторы</h3><button type="button" class="copy-gallery-btn" id="copy-gallery-btn" onclick="copyGalleryLink()">🔗 Скопировать ссылку</button></div>
                 <div id="gallery-authors" class="gallery-people"></div>
-                <details class="gallery-rubrics" id="gallery-rubrics">
-                    <summary id="gallery-rubrics-summary">📚 Рубрики</summary>
-                    <div class="category-filters" id="gallery-categories" role="group" aria-label="Рубрики фотографий"></div>
-                </details>
+                <div class="gallery-rubrics-row">
+                    <details class="gallery-rubrics" id="gallery-rubrics">
+                        <summary id="gallery-rubrics-summary">📚 Рубрики</summary>
+                        <div class="category-filters" id="gallery-categories" role="group" aria-label="Рубрики фотографий"></div>
+                        <div class="cactus-shortcuts">
+                            <a href="https://www.facebook.com/groups/656797861134195/" target="_blank" rel="noopener noreferrer">👥 Группа в Facebook «Кактусы дикие и домашние»</a>
+                            <button type="button" onclick="startCactusUpload()">📷 Добавить кактус</button>
+                            <button type="button" onclick="openGalleryInvite('cacti')">🔗 Пригласить кактусоводов</button>
+                        </div>
+                    </details>
+                    <a class="cactus-site-button" href="https://derev-studio.github.io/cactus-books/" target="_blank" rel="noopener noreferrer" title="Отдельный сайт Александра Деревяшкина о кактусах">🌵 Кактусярий <span aria-hidden="true">↗</span></a>
+                </div>
                 <div class="media-filters" role="group" aria-label="Выбор типа работ">
                     <button class="active" data-media="all" type="button" onclick="setMediaFilter('all')">🌍 Всё</button>
                     <button data-media="photo" type="button" onclick="setMediaFilter('photo')">🖼️ Фото</button>
