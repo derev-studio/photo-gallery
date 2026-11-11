@@ -581,10 +581,36 @@
         .gallery-item .info { overflow-wrap:anywhere; }
         .broken-photo { display:none; min-height:180px; background:#f6f2ea; padding:25px; text-align:center; color:#735f4e; align-items:center; justify-content:center; }
         @media (max-width:600px) { body { padding:8px; } .container { border-radius:19px; padding:17px 12px; } .upload-area { padding:20px 12px; } #start-btn { width:100%; } }
-    </style>
+    
+/* Пять привычных звёзд для оценки фотографии */
+.rate{display:flex;gap:5px;align-items:center;flex-wrap:nowrap;margin:8px 0 10px}
+.rate button.star{display:grid;place-items:center;width:45px;height:47px;min-width:45px;padding:4px;border:1px solid transparent;background:transparent;border-radius:11px;cursor:pointer;transition:transform .13s,background .13s}
+.rating-star-icon{display:block;width:36px;height:36px;overflow:visible}
+.rating-star-icon path{fill:#fff;stroke:#c1ad7a;stroke-width:1.8;stroke-linejoin:round;filter:drop-shadow(0 1px 1px #b7a68a)}
+.star.filled .rating-star-icon path{fill:url(#ratingGold);stroke:#d0900d;stroke-width:1.35;filter:drop-shadow(0 0 3px #ffda66) drop-shadow(0 1px 1px #c48d26)}
+.rate button.star:hover,.rate button.star:focus-visible{background:#fff1ca;transform:scale(1.08)}
+.rate button.star:focus-visible{outline:2px solid #23654b;outline-offset:2px}
+.avg-stars{display:inline-flex;gap:1px;align-items:center;font-size:18px;letter-spacing:0}
+.avg-stars .on{color:#eeae0b;text-shadow:0 0 2px #ffe28e}.avg-stars .off{color:#c3c7c0}
+
+.gallery-rating{margin:11px 0 4px;padding:11px 12px;background:linear-gradient(125deg,#faf8f2,#fffefa);border:1px solid #efe6cf;border-radius:14px}
+.gallery-rating-label{font-size:13px;font-weight:750;color:#67522b}
+.gallery-rating-result{font-size:12px;color:#706a5d;line-height:1.4}
+.gallery-rating .rate{margin:5px 0;gap:4px}
+.featured-tile{cursor:default}
+.featured-image-btn{display:block;width:100%;padding:0;margin:0;border:0;background:white;text-align:left;cursor:zoom-in}
+.featured-image-btn:focus-visible{outline:3px solid #25674f;outline-offset:-3px}
+.featured-tile .gallery-rating{margin:0 7px 8px;padding:7px 6px}
+.featured-tile .gallery-rating-label,.featured-tile .gallery-rating-result{font-size:11px}
+.featured-tile .rate button.star{width:32px;min-width:32px;height:35px;padding:1px}
+.featured-tile .rating-star-icon{width:29px;height:29px}
+@media(max-width:410px){.featured-tile .rate{gap:0}.featured-tile .rate button.star{width:27px;min-width:27px;height:29px;padding:0}.featured-tile .rating-star-icon{width:25px;height:25px}}
+
+</style>
 <script src="analytics-client.js"></script>
 </head>
 <body>
+<svg class="rating-defs" width="0" height="0" style="position:absolute;overflow:hidden" aria-hidden="true"><defs><linearGradient id="ratingGold" x1="0" y1="0" x2=".9" y2="1"><stop offset="0" stop-color="#fff7bd"/><stop offset=".38" stop-color="#ffd94a"/><stop offset=".69" stop-color="#ffb300"/><stop offset="1" stop-color="#dd8500"/></linearGradient></defs></svg>
 <!-- Google Tag Manager (noscript) -->
 <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-TCJQ8R2P" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 <!-- End Google Tag Manager (noscript) -->
@@ -1767,6 +1793,42 @@
 
         // Небольшая витрина лучших кадров: три работы Milaya mila и одна новая работа Александра.
         // Показываем только публичные фото, данные и оригиналы остаются на своих местах.
+        const ratingSvg="<svg class=\"rating-star-icon\" viewBox=\"0 0 32 32\" aria-hidden=\"true\" focusable=\"false\"><path d=\"M16 2.7l4.1 8.4 9.3 1.35-6.72 6.55 1.58 9.25L16 23.9l-8.26 4.35 1.58-9.25L2.6 12.45l9.3-1.35z\"/></svg>";
+        function galleryScores(photo) {
+            const entries=Object.values(photo?.juryVotes?.people||{});
+            return entries.map(v=>Number(v?.score)).filter(v=>v>=1&&v<=5);
+        }
+        function renderGalleryRating(photo) {
+            if (photo.mediaType === 'video') return '';
+            const id=Number(photo.id);
+            if (!Number.isSafeInteger(id) || id<=0) return '';
+            const values=galleryScores(photo);
+            const mine=Number(photo.juryVotes?.people?.[authUser?.uid]?.score)||0;
+            const average=values.length?(values.reduce((a,b)=>a+b,0)/values.length).toFixed(1):'';
+            const stars=Array.from({length:5},(_,i)=>{
+                const n=i+1;
+                return '<button class="star '+(n<=mine?'filled':'')+'" type="button" data-score="'+n+'" aria-label="Поставить '+n+' из пяти звёзд" aria-pressed="'+(mine===n)+'" title="'+n+' из 5" onpointerenter="ratingPreview(this)" onpointerleave="ratingReset(this)" onfocus="ratingPreview(this)" onblur="ratingReset(this)" onclick="rateGalleryPhoto('+id+','+n+')">'+ratingSvg+'</button>';
+            }).join('');
+            const result=values.length?'Средняя оценка: '+average+' из 5 · '+values.length+' '+(values.length===1?'голос':values.length>=2&&values.length<=4?'голоса':'голосов'):'Оценок пока нет';
+            return '<div class="gallery-rating"><div class="gallery-rating-label">Оцените фотографию</div><div class="rate gallery-rate" data-selected="'+mine+'" role="group" aria-label="Пять звёзд для оценки">'+stars+'</div><div class="gallery-rating-result">'+result+'</div></div>';
+        }
+        function paintGalleryRating(rate,score) {
+            rate.querySelectorAll('button.star').forEach((b,i)=>b.classList.toggle('filled',i<score));
+        }
+        window.ratingPreview=function(btn){paintGalleryRating(btn.closest('.gallery-rate'),Number(btn.dataset.score));};
+        window.ratingReset=function(btn){const r=btn.closest('.gallery-rate');paintGalleryRating(r,Number(r.dataset.selected||0));};
+        window.rateGalleryPhoto=async function(id,score) {
+            id=Number(id);score=Number(score);
+            if(!Number.isSafeInteger(id)||score<1||score>5)return;
+            const item=allPhotos.find(p=>Number(p.id)===id);
+            if(!item||item.mediaType==='video')return;
+            const account=await ensureGoogleUser();
+            if(!account)return;
+            try {
+                await db.ref('photos/'+id+'/juryVotes/people/'+account.uid).set({score,at:firebase.database.ServerValue.TIMESTAMP});
+            } catch(e) {alert('Не удалось сохранить оценку: '+(e.message||'Попробуйте снова.'));}
+        };
+
         const featuredPhotoIds = ['1794237815289','1794162628824','1794162382837','1794281260138'];
         function renderFeaturedPhotos() {
             const section = document.getElementById('featured-section');
@@ -1783,10 +1845,13 @@
                     const safeUrl = escapeHtml(photo.img);
                     const imageArg = encodeURIComponent(photo.img);
                     const author = escapeHtml(photo.author || 'Автор');
-                    return `<button class="featured-tile" type="button" onclick="openLightbox(decodeURIComponent('${imageArg}'))" aria-label="Посмотреть работу автора ${author}">
-                        <img src="${safeUrl}" alt="Фотография автора ${author}" loading="eager">
-                        <span class="featured-author">${author}</span>
-                    </button>`;
+                    return `<article class="featured-tile">
+                        <button class="featured-image-btn" type="button" onclick="openLightbox(decodeURIComponent('${imageArg}'))" aria-label="Посмотреть работу автора ${author}">
+                            <img src="${safeUrl}" alt="Фотография автора ${author}" loading="eager">
+                            <span class="featured-author">${author}</span>
+                        </button>
+                        ${renderGalleryRating(photo)}
+                    </article>`;
                 }).join('') + '</div>';
         }
 
@@ -1923,6 +1988,7 @@
                                 <div class="date" style="font-size:12px; color:#6b7a8f; margin-top:4px;">${escapeHtml(item.date)}</div>
                                 ${isVideo ? `<div class="video-caption">${escapeHtml(item.title || 'Видео')}</div><span class="video-platform">🎬 ${escapeHtml(item.videoProvider || 'Видео')}</span>` : ''}
                                 ${item.rubric && item.rubric !== 'Другое' ? `<div class="photo-genre">🏷 ${escapeHtml(item.rubric)}</div>` : ''}
+                                ${!isVideo ? renderGalleryRating(item) : ''}
                                 <div class="action-bar">
                                     <div style="display:flex; gap:6px; flex-wrap:wrap;">
                                         <button class="vote-btn like" onclick="vote(${item.id},'like')">👍 ${item.likes||0}</button>
