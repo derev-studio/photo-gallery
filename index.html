@@ -117,9 +117,14 @@
         }
 
         .tabs {
-            display: flex; flex-wrap: wrap; gap: 8px 16px;
+            display: grid; grid-template-columns: minmax(0, 1fr) auto;
+            align-items: start; gap: 12px;
             border-bottom: 1px solid rgba(26,35,50,0.08);
             padding-bottom: 12px; margin-bottom: 24px;
+        }
+        .tabs-links {
+            display: flex; flex-wrap: wrap; gap: 8px 16px;
+            min-width: 0;
         }
         .tab {
             font-weight: 600; color: #6b7a8f; cursor: pointer;
@@ -659,7 +664,7 @@
 /* Единое меню авторских сайтов. На телефоне занимает не более 90% экрана. */
 .sites-label-compact {display:none}
 .sites-menu-trigger {display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;min-height:42px;padding:9px 15px;background:#edf5ef;border:1px solid #bdd8c6;border-radius:23px;color:#215b3b;font:inherit;font-size:14px;font-weight:800;cursor:pointer;box-shadow:0 2px 8px #123d2714}
-.tab.sites-menu-trigger {min-height:32px;padding:6px 13px;border-radius:40px;font-size:14px;box-shadow:none}
+.tab.sites-menu-trigger {justify-self:end;min-height:34px;padding:6px 13px;border-radius:40px;font-size:14px;box-shadow:none;letter-spacing:0}
 .sites-menu-trigger:hover {background:#deefe3}
 .sites-menu-trigger:focus-visible,.sites-drawer a:focus-visible,.sites-drawer button:focus-visible {outline:3px solid #0a9a65;outline-offset:3px}
 .sites-drawer {position:fixed;inset:0 0 0 auto;margin:0;width:min(370px,90vw);height:100dvh;max-height:100dvh;max-width:90vw;box-sizing:border-box;overflow:auto;border:0;border-radius:23px 0 0 23px;padding:27px 23px;background:#fff;color:#213b2b;box-shadow:-15px 0 45px #0d2b2d40}
@@ -747,15 +752,17 @@
 
         <!-- ВКЛАДКИ -->
         <div class="tabs">
-            <span class="tab" data-tab="tab1">📤 Добавить</span>
-            <span class="tab active" data-tab="tab3">🖼️ Галерея</span>
-            <button class="tab sites-menu-trigger" type="button" onclick="document.getElementById('sites-drawer').showModal()" aria-haspopup="dialog" aria-controls="sites-drawer">🌐 <span class="sites-label-full">Империя сайтов</span><span class="sites-label-compact">Сайты</span></button>
-            <span class="tab" data-tab="tab4">⭐ Избранное</span>
-            <span class="tab" data-tab="tab5">💬 Чат</span>
-            <span class="tab" data-tab="tab2">🤖 ИИ</span>
-            <button class="tab" type="button" onclick="openMyWorksEditor()">👤 Мои работы</button>
-            <a class="tab" href="editor.html" style="text-decoration:none;">🎨 Фоторедактор</a>
-            <a class="tab" href="editor-ai.html" style="text-decoration:none;">✨ ИИ‑редактор</a>
+            <div class="tabs-links">
+                <span class="tab" data-tab="tab1">📤 Добавить</span>
+                <span class="tab active" data-tab="tab3">🖼️ Галерея</span>
+                <span class="tab" data-tab="tab4">⭐ Избранное</span>
+                <span class="tab" data-tab="tab5">💬 Чат</span>
+                <span class="tab" data-tab="tab2">🤖 ИИ</span>
+                <button class="tab" type="button" onclick="openMyWorksEditor()">👤 Мои работы</button>
+                <a class="tab" href="editor.html" style="text-decoration:none;">🎨 Фоторедактор</a>
+                <a class="tab" href="editor-ai.html" style="text-decoration:none;">✨ ИИ‑редактор</a>
+            </div>
+            <button class="tab sites-menu-trigger" type="button" onclick="document.getElementById('sites-drawer').showModal()" aria-label="Открыть Империю сайтов" title="Империя сайтов" aria-haspopup="dialog" aria-controls="sites-drawer">🌐 Сайты <span aria-hidden="true">▾</span></button>
         </div>
 
         <!-- ВКЛАДКА 1 -->
