@@ -30,23 +30,20 @@ dialog button{float:right}
 .human{color:#174b8f;font-weight:700}.robot{border-top:1px solid #e8eee9;padding-top:11px;margin-top:11px}
 .robot-row{display:flex;gap:8px;align-items:start;margin:8px 0;line-height:1.4}
 .robot-score{white-space:nowrap;font-weight:700;color:#745223}
-.rate{display:flex;gap:2px;align-items:center;flex-wrap:nowrap;margin:8px 0 10px}
-.rate button.star{position:relative;border:0;background:transparent;padding:2px;min-width:42px;min-height:49px;font-size:40px;line-height:1;text-align:center;color:var(--tone);transition:color .15s,transform .15s,filter .15s;filter:drop-shadow(0 0 1px var(--halo))}
-.rate button.star.tier-1{--tone:#b69c68;--halo:#ead8a7}
-.rate button.star.tier-2{--tone:#d5ab4a;--halo:#ffe6a0}
-.rate button.star.tier-3{--tone:#edb126;--halo:#ffd672}
-.rate button.star.tier-4{--tone:#fa9614;--halo:#ffb53e}
-.rate button.star.tier-5{--tone:#ff7807;--halo:#ffa524}
-.rate button.star.filled{filter:drop-shadow(0 0 4px var(--halo)) drop-shadow(0 1px 1px #a56735)}
-.rate button.star.tier-3.filled{filter:drop-shadow(0 0 5px #ffcc56)}
-.rate button.star.tier-4.filled{filter:drop-shadow(0 0 7px #ffaf26) drop-shadow(0 0 2px #fff2af)}
-.rate button.star.tier-5.filled{filter:drop-shadow(0 0 9px #ff9b18) drop-shadow(0 0 4px #ffe37a)}
-.rate button.star.tier-4.filled::after,.rate button.star.tier-5.filled::after{content:'✦';position:absolute;right:0;top:-2px;font-size:12px;color:#fff2ac;text-shadow:0 0 4px #ff9d05}
-.rate button.star.tier-5.filled::after{font-size:17px;right:-3px;top:-5px}
-.rate button.star:hover,.rate button.star:focus-visible{background:#fff0d2;transform:scale(1.13);border-radius:11px}
-.rate button.star:focus-visible{outline:3px solid #195b45}
-.avg-stars{display:inline-flex;gap:2px;font-size:20px;letter-spacing:1px}
-.avg-stars .off{color:#c1c6bb}.avg-stars span:nth-child(1).on{color:#b69c68}.avg-stars span:nth-child(2).on{color:#d5ab4a}.avg-stars span:nth-child(3).on{color:#edb126}.avg-stars span:nth-child(4).on{color:#fa9614;text-shadow:0 0 4px #ffdf83}.avg-stars span:nth-child(5).on{color:#ff7807;text-shadow:0 0 6px #ffbf4b}
+.rate{display:flex;gap:5px;align-items:center;flex-wrap:nowrap;margin:8px 0 10px}
+.rate button.star{display:grid;place-items:center;width:45px;height:47px;min-width:45px;padding:4px;border:1px solid transparent;background:transparent;border-radius:11px;cursor:pointer;transition:transform .13s,background .13s}
+.rating-star-icon{display:block;width:36px;height:36px;overflow:visible}
+.rating-star-icon path{fill:#fff;stroke:#c1ad7a;stroke-width:1.8;stroke-linejoin:round;filter:drop-shadow(0 1px 1px #b7a68a)}
+.star.filled .rating-star-icon path{fill:url(#ratingGold);stroke:#d0900d;stroke-width:1.35;filter:drop-shadow(0 0 3px #ffda66) drop-shadow(0 1px 1px #c48d26)}
+.rate button.star:hover,.rate button.star:focus-visible{background:#fff1ca;transform:scale(1.08)}
+.rate button.star:focus-visible{outline:2px solid #23654b;outline-offset:2px}
+.avg-stars{display:inline-flex;gap:1px;align-items:center;font-size:18px;letter-spacing:0}
+.avg-stars .on{color:#eeae0b;text-shadow:0 0 2px #ffe28e}.avg-stars .off{color:#c3c7c0}
+.share-destinations{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:14px 0}
+.share-destinations a{display:flex;align-items:center;justify-content:center;gap:7px;min-height:46px;padding:10px;border:1px solid #cbded0;background:#f5faf6;border-radius:12px;text-decoration:none;font-weight:700;color:#1c5039}
+.share-destinations a:hover{background:#e3f3e8}
+.share-explain{color:#526659;font-size:13px;margin:4px 0 8px}
+@media(max-width:380px){.rate button.star{width:40px;min-width:40px;padding:2px}.rating-star-icon{width:32px;height:32px}}
 #invite-dialog{width:min(510px,94vw);max-height:90vh;background:#fffdf6;color:#25352e;padding:22px;border:1px solid #e4d5b5;box-shadow:0 15px 50px #0004}
 #invite-dialog::backdrop{background:#071a13a8}
 #invite-dialog h2{font-size:23px;margin:0 0 12px}
@@ -64,6 +61,7 @@ dialog button{float:right}
 </style>
 </head>
 <body>
+<svg class="rating-defs" width="0" height="0" style="position:absolute;overflow:hidden" aria-hidden="true"><defs><linearGradient id="ratingGold" x1="0" y1="0" x2=".9" y2="1"><stop offset="0" stop-color="#fff7bd"/><stop offset=".38" stop-color="#ffd94a"/><stop offset=".69" stop-color="#ffb300"/><stop offset="1" stop-color="#dd8500"/></linearGradient></defs></svg>
 <main class="wrap">
 <header>
 <div class="nav"><a href="./">← Вернуться в галерею</a><div class="actions"><button type="button" id="invite">🔗 Пригласить друзей</button><button id="login" class="login" type="button">👤 Войти через Google</button></div></div>
@@ -80,7 +78,14 @@ dialog button{float:right}
  <p>Отправь друзьям ссылку. Они увидят фотографии и смогут поставить от одной до пяти звёзд.</p>
  <label for="share-url">Ссылка на голосование:</label>
  <input class="share-url" id="share-url" type="text" readonly>
- <div class="share-actions"><button class="primary" id="copy-link" type="button">📋 Скопировать ссылку</button><button id="native-share" type="button" hidden>↗ Поделиться</button></div>
+ <div class="share-destinations">
+  <a id="share-wa" target="_blank" rel="noopener noreferrer">🟢 WhatsApp</a>
+  <a id="share-tg" target="_blank" rel="noopener noreferrer">✈️ Telegram</a>
+  <a id="share-fb" target="_blank" rel="noopener noreferrer">🔵 Facebook</a>
+  <a id="share-mail">✉️ Почта</a>
+ </div>
+ <p class="share-explain">Нажми на нужную службу, выбери друга и отправь приглашение.</p>
+ <div class="share-actions"><button class="primary" id="copy-link" type="button">📋 Скопировать ссылку</button><button id="native-share" type="button" hidden>📲 Другие способы</button></div>
  <p id="share-feedback" role="status" aria-live="polite"></p>
 </dialog>
 </main>
@@ -90,6 +95,7 @@ if(!firebase.apps.length)firebase.initializeApp(cfg);
 const auth=firebase.auth(),db=firebase.database(),worker='https://photo-ai-qwen.qerevv.workers.dev/';
 let user=null,isOwner=false,photos=[],busy=new Set();
 const grid=document.getElementById('grid'),status=document.getElementById('status');
+const starSvg="<svg class=\"rating-star-icon\" viewBox=\"0 0 32 32\" aria-hidden=\"true\" focusable=\"false\"><path d=\"M16 2.7l4.1 8.4 9.3 1.35-6.72 6.55 1.58 9.25L16 23.9l-8.26 4.35 1.58-9.25L2.6 12.45l9.3-1.35z\"/></svg>";
 function safe(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function signal(s,error=false){status.textContent=s;status.className=s?(error?'status error':'status'):'';if(error)status.style.background='#fff0ed';else status.style.background='';}
 function humanScores(p){const votes=p?.juryVotes?.people||{};return Object.values(votes).map(v=>Number(v?.score)).filter(v=>v>=1&&v<=5);}
@@ -107,7 +113,7 @@ function render(){
   const bot=p.juryVotes?.robots||null;
   const robotLine=(name,key)=>bot?.[key]&&Number(bot[key].score)>=1?'<div class="robot-row"><span class="robot-score">'+safe(name)+' '+safe(bot[key].score)+'/5</span><span>'+safe(bot[key].reason||'')+'</span></div>':'';
   const mine=Number(self?.score)||0;
-  const stars=Array.from({length:5},(_,i)=>'<button type="button" class="star tier-'+(i+1)+' '+(i<mine?'filled':'')+'" data-rate="'+safe(p.id)+'" data-score="'+(i+1)+'" title="'+(i+1)+' из 5" aria-label="Поставить '+(i+1)+' звёзд">'+(i<mine?'★':'☆')+'</button>').join('');
+  const stars=Array.from({length:5},(_,i)=>'<button type="button" class="star '+(i<mine?'filled':'')+'" data-rate="'+safe(p.id)+'" data-score="'+(i+1)+'" title="'+(i+1)+' из 5" aria-label="Поставить '+(i+1)+' '+(i+1===1?'звезду':i+1===5?'звёзд':'звезды')+'">'+starSvg+'</button>').join('');
   const avgStars=scores.length?'<span class="avg-stars" title="Средняя оценка людей" aria-label="Средняя оценка '+safe(mean(scores))+' из 5">'+Array.from({length:5},(_,i)=>'<span class="'+(i<Math.round(Number(mean(scores)))?'on':'off')+'">★</span>').join('')+'</span>':'';
   return '<article class="card" data-id="'+safe(p.id)+'"><img src="'+safe(p.img)+'" alt="Фотография автора '+safe(p.author||'Автор')+'" loading="lazy"><div class="card-body"><div class="author">'+safe(p.author||'Автор')+'</div><div class="stats"><span class="human">👥 '+(scores.length?'Средняя оценка: '+mean(scores)+' из 5':'Пока нет оценок')+'</span>'+avgStars+'<span class="muted">'+scores.length+' '+(scores.length===1?'голос':scores.length>=2&&scores.length<=4?'голоса':'голосов')+'</span></div><div class="muted">'+(user?(self?'Вы поставили '+safe(self.score)+' из 5. Можно изменить:':'Выберите от 1 до 5 звёзд:'):'Выберите звёзды — для сохранения понадобится вход через Google.')+'</div><div class="rate" data-selected="'+mine+'" aria-label="Оценка фотографии от одной до пяти звёзд">'+stars+'</div><div class="robot"><b>🤖 Голоса роботов</b>'+(bot?robotLine('Педант','pedant')+robotLine('Циник','cynic'):'<p class="muted">Роботы пока не оценили.</p>')+(isOwner?'<button class="robot-action" data-robot="'+safe(p.id)+'" '+(busy.has(String(p.id))?'disabled':'')+'>'+(busy.has(String(p.id))?'⏳ Роботы оценивают…':bot?'🔄 Переоценить роботами':'🤖 Запустить роботов')+'</button>':'')+'</div></div></article>';
  }).join('');
@@ -123,6 +129,11 @@ const shareFeedback=document.getElementById('share-feedback');
 function votingLink(){return location.origin+location.pathname;}
 document.getElementById('invite').addEventListener('click',()=>{
  shareUrl.value=votingLink();shareFeedback.textContent='';
+ const message='Приглашаю тебя оценить фотографии в нашей галерее!';
+ document.getElementById('share-wa').href='https://wa.me/?text='+encodeURIComponent(message+' '+votingLink());
+ document.getElementById('share-tg').href='https://t.me/share/url?url='+encodeURIComponent(votingLink())+'&text='+encodeURIComponent(message);
+ document.getElementById('share-fb').href='https://www.facebook.com/sharer/sharer.php?u='+encodeURIComponent(votingLink());
+ document.getElementById('share-mail').href='mailto:?subject='+encodeURIComponent('Приглашение в фотогалерею')+'&body='+encodeURIComponent(message+' '+votingLink());
  document.getElementById('native-share').hidden=!navigator.share;
  inviteDialog.showModal();shareUrl.focus();shareUrl.select();
 });
@@ -160,7 +171,7 @@ function previewStars(rate,score){
  rate.querySelectorAll('button.star').forEach((star,i)=>{
   const fill=i<score;
   star.classList.toggle('filled',fill);
-  star.textContent=fill?'★':'☆';
+
  });
 }
 grid.addEventListener('pointerover',event=>{
