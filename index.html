@@ -2045,7 +2045,11 @@
         // Роль привязана к Google UID, не к отображаемому имени.
         // Управление ролями нужно дополнительно закрепить Firebase Rules.
         function findMilaAccount() {
-            return allPhotos.find(p => p.author === 'Milaya mila' && typeof p.ownerUid === 'string' && p.ownerUid.length > 10)?.ownerUid || '';
+            // Если есть несколько аккаунтов с одинаковым именем, не назначаем права наугад.
+            const matches = new Set(allPhotos.filter(p => p.author === 'Milaya mila'
+                && typeof p.ownerUid === 'string' && p.ownerUid.length > 10)
+                .map(p => p.ownerUid));
+            return matches.size === 1 ? [...matches][0] : '';
         }
         function syncPhotoEditorStatus() {
             isPhotoEditor = !!authUser && photoEditorUids.has(authUser.uid);
