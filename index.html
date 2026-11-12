@@ -2755,16 +2755,8 @@
 
         window._banned = false;
         window.banDerevyashkin = function() {
-            if (!isAdmin) return alert('Только админ!');
-            window._banned = true;
-            db.ref('photos').once('value', snap => {
-                const data = snap.val();
-                if (data) Object.keys(data).forEach(key => {
-                    if (data[key].author === 'Александр Деревяшкин') db.ref('photos/' + key).update({ banned: true });
-                });
-            });
-            alert('🔨 Деревяшкин забанен!');
-            renderCatalog();
+            // Владелец галереи не может быть заблокирован из интерфейса.
+            alert('Владелец галереи защищён от блокировки.');
         };
         window.unbanDerevyashkin = function() {
             if (!isAdmin) return alert('Только админ!');
