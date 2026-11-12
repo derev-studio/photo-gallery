@@ -2059,7 +2059,7 @@
                     : '👩‍🎨 Назначить Милу фоторедактором';
             }
         }
-        db.ref('photoEditors').on('value', snapshot => {
+        db.ref('admins/galleryPhotoEditors').on('value', snapshot => {
             photoEditorUids = new Set(Object.keys(snapshot.val() || {}).filter(uid => snapshot.val()?.[uid]?.enabled === true));
             syncPhotoEditorStatus();
             if (document.getElementById('tab3').classList.contains('active')) renderCatalog();
@@ -2075,7 +2075,7 @@
                 ? 'Дать Миле право добавлять и убирать работы из «Лучших кадров»? Других прав она не получит.'
                 : 'Отозвать у Милы право выбирать лучшие кадры?')) return;
             try {
-                await db.ref('photoEditors/' + uid).set(enabled ? {
+                await db.ref('admins/galleryPhotoEditors/' + uid).set(enabled ? {
                     enabled:true, name:'Milaya mila', updatedBy:authUser.uid,
                     at:firebase.database.ServerValue.TIMESTAMP
                 } : null);
