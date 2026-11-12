@@ -644,6 +644,12 @@
 .gallery-rating-result{font-size:12px;color:#706a5d;line-height:1.4}
 .gallery-rating .rate{margin:5px 0;gap:4px}
 .featured-tile{cursor:default}
+.featured-expand{display:block;margin:16px auto 0;padding:11px 20px;border:1px solid #9dbfa9;background:#fff;color:#20593c;border-radius:24px;font:inherit;font-weight:800;cursor:pointer}
+.featured-expand:hover{background:#e9f7ed}
+.featured-expand:focus-visible{outline:3px solid #25674f;outline-offset:3px}
+.gallery-curator-assign{display:none;border:1px solid #accbb8;background:#f1f9f3;color:#195e3f;border-radius:20px;padding:9px 13px;font:inherit;font-weight:700;font-size:13px;cursor:pointer}
+.gallery-curator-assign:hover{background:#dbefe1}
+.gallery-curator-assign:focus-visible{outline:2px solid #25674f;outline-offset:2px}
 .featured-image-btn{display:block;width:100%;padding:0;margin:0;border:0;background:white;text-align:left;cursor:zoom-in}
 .featured-image-btn:focus-visible{outline:3px solid #25674f;outline-offset:-3px}
 .featured-tile .gallery-rating{margin:0 7px 8px;padding:7px 6px}
@@ -839,7 +845,7 @@
             <div id="gallery-success" role="status" style="display:none;background:#e7f6e9;border:1px solid #a1cfb1;color:#194e36;padding:16px;border-radius:17px;margin-bottom:16px;line-height:1.7;"></div>
             <section id="featured-section" class="featured-section" aria-label="Лучшие кадры" hidden></section>
             <section class="gallery-discovery" aria-label="Выбор автора и раздела">
-                <div class="gallery-discovery-heading"><h3>👥 Авторы</h3><button type="button" class="copy-gallery-btn" id="copy-gallery-btn" onclick="copyGalleryLink()">🔗 Скопировать ссылку</button></div>
+                <div class="gallery-discovery-heading"><h3>👥 Авторы</h3><button class="gallery-curator-assign" type="button" id="gallery-curator-assign" onclick="toggleMilaCurator()" hidden>👩‍🎨 Назначить Милу редактором</button><button type="button" class="copy-gallery-btn" id="copy-gallery-btn" onclick="copyGalleryLink()">🔗 Скопировать ссылку</button></div>
                 <div id="gallery-authors" class="gallery-people"></div>
                 <details class="gallery-rubrics" id="gallery-rubrics">
                         <summary id="gallery-rubrics-summary">📚 Рубрики</summary>
@@ -932,6 +938,8 @@
         let currentAuthor = "";
         let isPro = false;
         let isAdmin = false;
+        let isPhotoEditor = false;
+        let photoEditorUids = new Set();
         let authUser = null;
         let allPhotos = [];
         let activeProfile = null;
@@ -1953,6 +1961,7 @@
         db.ref('photos').on('value', (snapshot) => {
             const data = snapshot.val();
             allPhotos = data ? Object.values(data) : [];
+            syncPhotoEditorStatus();
             if (document.getElementById('tab3').classList.contains('active')) renderCatalog();
             updatePiastres();
         }, error => {
@@ -2031,6 +2040,47 @@
             }catch(e){status.textContent='Выдели и скопируй ссылку выше.';document.getElementById('gallery-invite-url').select();}
         };
         document.getElementById('gallery-invite-dialog').addEventListener('click',e=>{if(e.target.id==='gallery-invite-dialog')e.target.close();});
+
+        // ===== ФОТОРЕДАКТОР =====
+        // Роль привязана к Google UID, не к отображаемому имени.
+        // Управление ролями нужно дополнительно закрепить Firebase Rules.
+        function findMilaAccount() {
+            return allPhotos.find(p => p.author === 'Milaya mila' && typeof p.ownerUid === 'string' && p.ownerUid.length > 10)?.ownerUid || '';
+        }
+        function syncPhotoEditorStatus() {
+            isPhotoEditor = !!authUser && photoEditorUids.has(authUser.uid);
+            const btn = document.getElementById('gallery-curator-assign');
+            if (btn) {
+                const uid = findMilaAccount();
+                btn.hidden = !(isAdmin && uid && uid !== authUser?.uid);
+                btn.style.display = btn.hidden ? 'none' : 'inline-flex';
+                if (!btn.hidden) btn.textContent = photoEditorUids.has(uid)
+                    ? '✅ Мила — редактор · отозвать'
+                    : '👩‍🎨 Назначить Милу фоторедактором';
+            }
+        }
+        db.ref('photoEditors').on('value', snapshot => {
+            photoEditorUids = new Set(Object.keys(snapshot.val() || {}).filter(uid => snapshot.val()?.[uid]?.enabled === true));
+            syncPhotoEditorStatus();
+            if (document.getElementById('tab3').classList.contains('active')) renderCatalog();
+        }, error => {
+            console.warn('Права фоторедактора недоступны:', error.code);
+        });
+        window.toggleMilaCurator = async function() {
+            if (!isAdmin || !authUser) return;
+            const uid = findMilaAccount();
+            if (!uid || uid === authUser.uid) return;
+            const enabled = !photoEditorUids.has(uid);
+            if (!confirm(enabled
+                ? 'Дать Миле право добавлять и убирать работы из «Лучших кадров»? Других прав она не получит.'
+                : 'Отозвать у Милы право выбирать лучшие кадры?')) return;
+            try {
+                await db.ref('photoEditors/' + uid).set(enabled ? {
+                    enabled:true, name:'Milaya mila', updatedBy:authUser.uid,
+                    at:firebase.database.ServerValue.TIMESTAMP
+                } : null);
+            } catch(e) { alert('Не удалось изменить права: ' + (e.message || 'Проверьте правила Firebase.')); }
+        };
 
         // ===== ГАЛЕРЕЯ =====
         function canEditComment(comment) {
@@ -2140,7 +2190,7 @@
             }catch(e){alert('Не удалось сохранить предложение: '+(e.message||'Попробуйте позже.'));}
         };
         window.setBestPhoto=async function(id){
-            if(!isAdmin)return alert('Выбор редакции утверждает только владелец галереи.');
+            if(!(isAdmin || isPhotoEditor))return alert('Утверждать лучшие работы может только владелец или назначенный фоторедактор.');
             const photo=allPhotos.find(p=>Number(p.id)===Number(id));
             if(!photo||photo.mediaType==='video')return;
             const chosen=photo.editorPick===true||(photo.editorPick!==false&&featuredPhotoIds.includes(String(id)));
@@ -2156,11 +2206,16 @@
             return '<div class="best-tools">'
               +'<button type="button" class="'+(mine?'best-active':'')+'" onclick="suggestBestPhoto('+id+')">'+(mine?'✓ Предложено в лучшие':'🏅 Предложить в лучшие')+'</button>'
               +(nominations.length?'<small>'+nominations.length+' '+(nominations.length===1?'предложение':'предложений')+'</small>':'')
-              +(isAdmin?'<button type="button" class="'+(chosen?'best-active':'')+'" onclick="setBestPhoto('+id+')">'+(chosen?'✓ Убрать из лучших':'✨ Утвердить в лучших')+'</button>':'')
+              +((isAdmin || isPhotoEditor)?'<button type="button" class="'+(chosen?'best-active':'')+'" onclick="setBestPhoto('+id+')">'+(chosen?'✓ Убрать из лучших':'✨ Утвердить в лучших')+'</button>':'')
               +'</div>';
         }
 
         const featuredPhotoIds = ['1794237815289','1794162628824','1794162382837','1794281260138'];
+        let showAllFeatured = false;
+        window.toggleFeaturedExpansion = function() {
+            showAllFeatured = !showAllFeatured;
+            renderFeaturedPhotos();
+        };
         function renderFeaturedPhotos() {
             const section = document.getElementById('featured-section');
             // В тематическом разделе показываем только выбранные фотографии, без чужой подборки наверху.
@@ -2174,15 +2229,15 @@
                 .map(id => allPhotos.find(photo => String(photo.id) === id))]
                 .filter((p,i,list)=>p && list.findIndex(other=>other&&String(other.id)===String(p.id))===i)
                 .filter(p=>p.editorPick!==false)
-                .slice(0,4)
                 .filter(photo => photo && photo.mediaType !== 'video'
                     && !isNudePhoto(photo) && /^https:\/\//.test(photo.img || ''));
             section.hidden = !featured.length;
             if (!featured.length) { section.innerHTML = ''; return; }
+            const visibleFeatured = showAllFeatured ? featured : featured.slice(0,4);
             section.innerHTML =
-                '<div class="featured-header"><h3>✨ Лучшие кадры</h3><span>Нажмите на фото — откроется целиком</span></div>' +
+                '<div class="featured-header"><h3>✨ Лучшие кадры</h3><span>' + featured.length + ' работ · нажмите на фото для просмотра</span></div>' +
                 '<div class="featured-grid">' +
-                featured.map(photo => {
+                visibleFeatured.map(photo => {
                     const safeUrl = escapeHtml(photo.img);
                     const imageArg = encodeURIComponent(photo.img);
                     const author = escapeHtml(photo.author || 'Автор');
@@ -2194,7 +2249,9 @@
                         ${renderGalleryRating(photo)}
                         <span class="best-tile-tag">🏅 Выбор редакции</span>
                     </article>`;
-                }).join('') + '</div>';
+                }).join('') + '</div>'
+                + (featured.length > 4 ? '<button class="featured-expand" type="button" onclick="toggleFeaturedExpansion()" aria-expanded="'+ showAllFeatured +'">'
+                    + (showAllFeatured ? '↑ Свернуть · показать первые 4' : '✨ Показать все лучшие (' + featured.length + ')') + '</button>' : '');
         }
 
         // Авторы доступны в начале страницы, даже если их снимки ниже по ленте.
@@ -2735,6 +2792,7 @@
                 authUser = user;
                 currentUser = user?.displayName || user?.email?.split('@')[0] || '';
                 isAdmin = false;
+                syncPhotoEditorStatus();
                 updateUserStatus();
                 if (document.getElementById('tab3').classList.contains('active')) renderCatalog();
                 if (user) {
@@ -2749,6 +2807,7 @@
                         if (firebase.auth().currentUser?.uid === user.uid) isAdmin = response.ok && result.isOwner === true;
                     } catch (e) { console.warn('Проверка владельца:', e); }
                 }
+                syncPhotoEditorStatus();
                 updateUserStatus();
                 if (document.getElementById('tab3').classList.contains('active')) renderCatalog();
             });
