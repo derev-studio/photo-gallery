@@ -28,6 +28,8 @@
     const parts = location.pathname.split('/').filter(Boolean);
     const first = parts[0] || '';
     const file = (parts[parts.length - 1] || '').toLowerCase();
+    // The Tuesday market is an independent project hosted inside /ohotnik/.
+    if (first === 'ohotnik' && file === 'shuk.html') return 'shuk';
     if (file === 'admin.html') return 'admin';
     if (file === 'site-analytics.html') return 'site-analytics';
     if (file === 'analytics.html') return 'analytics';
