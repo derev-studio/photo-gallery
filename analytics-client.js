@@ -46,6 +46,11 @@
 
   function analyticsLocation() {
     const u = new URL(location.href);
+    if (site === 'shuk') {
+      // Normalized analytics path: treat this independent page as its own site.
+      u.pathname = '/shuk/shuk.html';
+      return u.href;
+    }
     if (site === 'yaniv') {
       u.pathname = '/yaniv/yaniv.html';
       return u.href;
@@ -121,7 +126,7 @@
   }
 
   const analyticsPageTitle = `${site} | ${document.title}`;
-  gtag('event', 'page_view', { page_location: trackedLocation, page_title: analyticsPageTitle });
+  gtag('event', 'page_view', { page_location: trackedLocation, page_title: analyticsPageTitle, site_id: site });
   sendVisit();
 
   window.DerevVisitor = {
