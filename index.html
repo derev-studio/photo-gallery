@@ -429,6 +429,17 @@
         .comment .child-comments { grid-column: 1 / -1; margin-left: 12px; border-left: 2px solid rgba(26,35,50,0.08); padding-left: 16px; min-width: 0; }
         .comment .child-comments:empty { display: none; }
 
+        .photo-title-upload-label { display:block; font:700 17px system-ui,sans-serif; margin:18px 0 6px; color:#243247; text-align:left; }
+        .photo-title-upload-input { display:block; width:100%; font:18px system-ui,sans-serif; padding:14px 16px; border:2px solid #b8cfc5; border-radius:12px; }
+        .photo-name { margin:10px 0 4px; font-weight:800; font-size:21px; color:#1f4f45; overflow-wrap:anywhere; }
+        .photo-title-edit-open { margin-top:6px; padding:8px 12px; font-size:14px; color:#25674f; background:#edf5f0; border:1px solid #b8cfc5; border-radius:10px; cursor:pointer; }
+        .photo-title-editor[hidden] {display:none!important}
+        .photo-title-editor {display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:8px}
+        .photo-title-editor input { flex:1 1 230px; min-width:0; padding:11px; border:2px solid #b8cfc5; border-radius:10px; font-size:17px }
+        .photo-title-editor button { padding:10px 13px; border:0; border-radius:10px; background:#25674f; color:#fff; cursor:pointer }
+        .photo-title-editor button + button { background:#e5ebe9; color:#243247 }
+        .photo-title-edit-status { font-size:14px; color:#9f302c; flex:1 1 100% }
+        .comment-length-note {font:13px system-ui,sans-serif;color:#637977}
         .comment-input-area {
             display: flex; flex-direction: column; align-items: flex-start;
             gap: 12px; margin-top: 16px; max-width: 1000px;
@@ -785,6 +796,8 @@
                     <input type="file" id="file-input" accept="image/*,.heic,.heif">
                     <img id="quick-preview" class="quick-preview" alt="Предпросмотр выбранной фотографии">
                     <div class="upload-help" id="file-help"></div>
+                    <label class="photo-title-upload-label" for="photo-title">Название фотографии</label>
+                    <input type="text" id="photo-title" class="photo-title-upload-input" maxlength="180" placeholder="Например: Золушка, Жужа и три дельфина" aria-label="Название фотографии (необязательно)">
                     <div id="upload-status" style="margin-top:12px; font-weight:600;"></div>
                 </div>
             </div>
@@ -1746,6 +1759,7 @@
                     id: Date.now(),
                     img: lastUploadedUrl,
                     thumbUrl: lastUploadedThumbUrl,
+                    title: document.getElementById('photo-title').value.trim().slice(0, 180),
                     rubric: uploadCategories.has('nude') ? 'Жанр Ню' : uploadCategories.size ? PHOTO_CATEGORIES.find(c => uploadCategories.has(c.id)).name : detectedCategory || 'Другое',
                     categories: [...uploadCategories],
                     author: currentAuthor,
@@ -1793,6 +1807,7 @@
                 document.getElementById('robot-genre-btn').disabled = true;
                 document.getElementById('robot-real-ai-btn').disabled = true;
                 document.getElementById('file-input').value = '';
+                document.getElementById('photo-title').value = '';
                 document.getElementById('file-btn').textContent = '📷 Выбрать фото';
                 document.getElementById('file-help').textContent = '';
                 document.getElementById('quick-preview').classList.remove('show');
@@ -2328,6 +2343,46 @@
             renderCatalog();
         };
 
+        // Название можно добавить к уже опубликованной фотографии без повторной загрузки.
+        function canEditPhotoTitle(photo) {
+            return !!photo && (isAdmin || !!(authUser && (photo.ownerUid === authUser.uid ||
+                (!photo.ownerUid && ownPhotoIds.has(Number(photo.id))))));
+        }
+        window.togglePhotoTitleEditor = function(photoId) {
+            const photo = allPhotos.find(p => String(p.id) === String(photoId));
+            if (!canEditPhotoTitle(photo)) return;
+            const area = document.getElementById('photo-title-editor-' + photoId);
+            if (!area) return;
+            if (!area.hidden) { area.hidden = true; return; }
+            const input = area.querySelector('input');
+            input.value = photo.title || '';
+            area.querySelector('.photo-title-edit-status').textContent = '';
+            area.hidden = false;
+            input.focus();
+        };
+        window.savePhotoTitle = async function(photoId) {
+            const photo = allPhotos.find(p => String(p.id) === String(photoId));
+            if (!canEditPhotoTitle(photo)) return;
+            const area = document.getElementById('photo-title-editor-' + photoId);
+            if (!area) return;
+            const input = area.querySelector('input');
+            const status = area.querySelector('.photo-title-edit-status');
+            const button = area.querySelector('button');
+            const title = input.value.trim();
+            if (title.length > 180) { status.textContent = 'Не более 180 символов.'; return; }
+            button.disabled = true;
+            status.textContent = 'Сохраняем…';
+            try {
+                const account = await ensureGoogleUser();
+                if (!account || !canEditPhotoTitle(photo)) throw new Error('Нужно войти как автор фотографии.');
+                await db.ref('photos/' + photoId + '/title').set(title);
+                photo.title = title;
+                area.hidden = true;
+                renderCatalog();
+            } catch (e) {
+                status.textContent = 'Не удалось сохранить: ' + (e.message || 'Ошибка доступа');
+            } finally { button.disabled = false; }
+        };
         window.renderCatalog = function() {
             const container = document.getElementById('catalog-container');
             const activePhoto = document.activeElement?.dataset?.commentPhoto;
@@ -2413,6 +2468,17 @@
                             `}
                             <div class="info">
                                 <div><button class="author author-profile-link" type="button" data-uid="${escapeHtml(item.ownerUid || '')}" data-name="${escapeHtml(item.author || 'Автор')}" onclick="showAuthorProfile(this.dataset.uid,this.dataset.name)" title="Открыть страницу автора">${escapeHtml(item.author || 'Автор')} ↗</button>${item.isPro ? '<span class="pro-badge">PRO</span>' : ''}${isBanned ? '<span class="banned-badge">БАН</span>' : ''}</div>
+                                ${!isVideo && item.title ? `<div class="photo-name">${escapeHtml(item.title)}</div>` : ''}
+                                ${!isVideo && (isAdmin || (authUser && (item.ownerUid === authUser.uid || (!item.ownerUid && ownPhotoIds.has(Number(item.id)))))) ? `
+                                    <div class="photo-title-edit-wrap">
+                                        <button type="button" class="photo-title-edit-open" onclick="togglePhotoTitleEditor(${item.id})">✏️ ${item.title ? 'Изменить название' : 'Добавить название'}</button>
+                                        <div class="photo-title-editor" id="photo-title-editor-${item.id}" hidden>
+                                            <input type="text" maxlength="180" placeholder="Название фотографии" aria-label="Название фотографии">
+                                            <button type="button" onclick="savePhotoTitle(${item.id})">Сохранить</button>
+                                            <button type="button" onclick="togglePhotoTitleEditor(${item.id})">Отмена</button>
+                                            <span class="photo-title-edit-status" role="status"></span>
+                                        </div>
+                                    </div>` : ''}
                                 <div class="date" style="font-size:12px; color:#6b7a8f; margin-top:4px;">${escapeHtml(item.date)}</div>
                                 ${isVideo ? `<div class="video-caption">${escapeHtml(item.title || 'Видео')}</div><span class="video-platform">🎬 ${escapeHtml(item.videoProvider || 'Видео')}</span>` : ''}
                                 ${isNudePhoto(item) ? '<div class="photo-genre">🏷 ню · 18+</div>' : item.rubric && item.rubric !== 'Другое' ? `<div class="photo-genre">🏷 ${escapeHtml(item.rubric)}</div>` : ''}
@@ -2448,7 +2514,7 @@
                                                 </span>
                                                 ${canEditComment(c) ? `
                                                 <div class="comment-edit-form ${activeCommentEdits.has(`${item.id}:${c.id}`) ? 'show' : ''}" id="edit-${item.id}-${c.id}">
-                                                    <textarea data-edit-key="${item.id}:${c.id}" rows="9" maxlength="20000" aria-label="Изменить рассказ"></textarea>
+                                                    <textarea data-edit-key="${item.id}:${c.id}" rows="12" maxlength="60000" aria-label="Изменить комментарий или рассказ"></textarea>
                                                     <div class="comment-edit-buttons">
                                                         <button class="save-edit" onclick="saveEditedComment(${item.id},'${c.id}')">Сохранить изменения</button>
                                                         <button class="cancel-edit" onclick="cancelEditedComment(${item.id},'${c.id}')">Отмена</button>
@@ -2468,7 +2534,8 @@
                                         `).join('')}
                                     </div>
                                     <div class="comment-input-area" ${[...activeCommentEdits].some(k => k.startsWith(item.id + ':')) ? 'hidden' : ''}>
-                                        <textarea id="comment-input-${item.id}" data-comment-photo="${item.id}" placeholder="Ваш комментарий..." rows="4" maxlength="10000" aria-label="Написать комментарий"></textarea>
+                                        <textarea id="comment-input-${item.id}" data-comment-photo="${item.id}" placeholder="Ваш комментарий..." rows="10" maxlength="60000" aria-label="Написать комментарий или рассказ (до 60 000 символов)"></textarea>
+                                        <div class="comment-length-note">Комментарий или рассказ — до 60 000 символов.</div>
                                         <button onclick="addComment(${item.id})">Опубликовать комментарий</button>
                                     </div>
                                 </div>
