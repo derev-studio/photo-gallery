@@ -974,6 +974,14 @@
         let currentUser = "";
         let nsfwModel = null;
         let sensitivityLevel = 2; // 1-3
+        // В сетке показываем миниатюру ImgBB; оригинал открывается только по нажатию.
+        // Для старых работ без thumbUrl сохраняем прежнее поведение.
+        function galleryThumbUrl(photo) {
+            const thumbnail = String(photo?.thumbUrl || '');
+            if (/^https:\/\//.test(thumbnail)) return thumbnail;
+            const original = String(photo?.img || '');
+            return /^https:\/\//.test(original) ? original : '';
+        }
         function escapeHtml(value) {
             return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
         }
@@ -1065,7 +1073,7 @@
                     + ')" aria-label="Открыть художественное ню, подтверждаю возраст 18+">'
                     + '<strong>+18</strong><span>Художественное ню<br>Нажимая, подтверждаете, что вам исполнилось 18 лет</span></button>';
             }
-            const safeImage = escapeHtml(/^https:\/\//.test(photo.img || '') ? photo.img : '');
+            const safeImage = escapeHtml(galleryThumbUrl(photo));
             const imageArg = encodeURIComponent(photo.img || '');
             return '<img src="' + safeImage + '" loading="lazy" alt="Работа автора ' + escapeHtml(photo.author || 'Автор')
                 + '" onclick="openLightbox(decodeURIComponent(\'' + imageArg
@@ -1135,6 +1143,7 @@
 
         // Никакие модели не загружаются автоматически: галерея доступна сразу.
         let lastUploadedUrl = '';
+        let lastUploadedThumbUrl = '';
         let previewObjectUrl = '';
         let publishing = false;
         const uploadStatus = document.getElementById('upload-status');
@@ -1186,6 +1195,7 @@
             }
             selectedFile = file;
             lastUploadedUrl = '';
+            lastUploadedThumbUrl = '';
             uploadedDataUrl = '';
             detectedCategory = '';
             lastRobotFile = null;
@@ -1697,7 +1707,7 @@
                 xhr.onload = () => {
                     let response;
                     try { response = JSON.parse(xhr.responseText); } catch { response = {}; }
-                    if (xhr.status >= 200 && xhr.status < 300 && response.storage === 'imgbb' && /^https:\/\//.test(response.url||'')) resolve(response.url);
+                    if (xhr.status >= 200 && xhr.status < 300 && response.storage === 'imgbb' && /^https:\/\//.test(response.url||'')) resolve({url:response.url,thumbUrl:/^https:\/\//.test(response.thumbUrl||'') ? response.thumbUrl : ''});
                     else reject(new Error(response.error || 'ImgBB не принял снимок. Попробуйте ещё раз.'));
                 };
                 xhr.send(data);
@@ -1727,12 +1737,15 @@
                     const file = await prepareForUpload(selectedFile);
                     const googleToken = await account.getIdToken();
                     uploadStatus.textContent = '⏳ Загрузка: 0%';
-                    lastUploadedUrl = await uploadToImgBB(file, googleToken, percent => { uploadStatus.textContent = `⏳ Загрузка: ${percent}%`; });
+                    const uploaded = await uploadToImgBB(file, googleToken, percent => { uploadStatus.textContent = `⏳ Загрузка: ${percent}%`; });
+                    lastUploadedUrl = uploaded.url;
+                    lastUploadedThumbUrl = uploaded.thumbUrl;
                 }
                 uploadStatus.textContent = '⏳ Публикация…';
                 const photo = {
                     id: Date.now(),
                     img: lastUploadedUrl,
+                    thumbUrl: lastUploadedThumbUrl,
                     rubric: uploadCategories.has('nude') ? 'Жанр Ню' : uploadCategories.size ? PHOTO_CATEGORIES.find(c => uploadCategories.has(c.id)).name : detectedCategory || 'Другое',
                     categories: [...uploadCategories],
                     author: currentAuthor,
@@ -1748,7 +1761,7 @@
                 // Одна публикация: общая галерея и личный альбом того же Google-аккаунта.
                 // Обе записи сохраняются вместе, чтобы фото не потерялось между разделами.
                 const personalWork = {
-                    id: photo.id, url: photo.img, mode: 'Моё фото', model: '',
+                    id: photo.id, url: photo.img, thumbUrl: photo.thumbUrl, mode: 'Моё фото', model: '',
                     prompt: photo.filename, time: new Date().toLocaleString('ru-RU'),
                     date: photo.date, published: true, publicId: photo.id,
                     ownerName: currentAuthor
@@ -1774,6 +1787,7 @@
                 // При следующем выборе файла загрузка начнётся с чистого листа.
                 selectedFile = null;
                 lastUploadedUrl = '';
+                lastUploadedThumbUrl = '';
                 lastRobotFile = null;
                 document.getElementById('robot-publish-btn').disabled = true;
                 document.getElementById('robot-genre-btn').disabled = true;
@@ -2249,7 +2263,7 @@
                 '<div class="featured-header"><h3>⭐ Лучшие фото</h3><span>' + featured.length + ' работ · нажмите на фото для просмотра</span></div>' +
                 '<div class="featured-grid">' +
                 visibleFeatured.map(photo => {
-                    const safeUrl = escapeHtml(photo.img);
+                    const safeUrl = escapeHtml(galleryThumbUrl(photo));
                     const imageArg = encodeURIComponent(photo.img);
                     const author = escapeHtml(photo.author || 'Автор');
                     return `<article class="featured-tile">
@@ -2278,7 +2292,7 @@
                 if (!authors.has(key)) authors.set(key, {uid,name,count:0,cover:''});
                 const person = authors.get(key);
                 person.count++;
-                if (!person.cover && p.mediaType !== 'video' && !isNudePhoto(p) && /^https:\/\//.test(p.img || '')) person.cover = p.img;
+                if (!person.cover && p.mediaType !== 'video' && !isNudePhoto(p) && /^https:\/\//.test(p.img || '')) person.cover = galleryThumbUrl(p);
             });
             const currentKey = activeProfile ? (activeProfile.uid ? 'uid:' + activeProfile.uid : 'name:' + activeProfile.name) : '';
             let buttons = '<button class="author-quick' + (!activeProfile ? ' active' : '')
